@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { Box, Button, Heading, Text, Flex, VStack, Spacer } from '@chakra-ui/react';
+import { Box, Button, Heading, Text, Flex, VStack, Spacer, Badge, useBreakpointValue } from '@chakra-ui/react';
 import { useAuth } from '../contexts/AuthContext';
 import DashboardPanel from './DashboardPanel';
 import ProductsPanel from './ProductsPanel';
+import InventoryPanel from './InventoryPanel';
+import SettingsPanel from './SettingsPanel';
+import Navbar from '../components/Navbar';
 
-const Sidenav = ({ activePanel, setActivePanel, onLogout }) => (
+const Sidenav = ({ activePanel, setActivePanel, onLogout, userRole, isAdmin }) => (
   <Flex
     direction="column"
     w="220px"
@@ -40,8 +43,41 @@ const Sidenav = ({ activePanel, setActivePanel, onLogout }) => (
       >
         Products
       </Button>
+      <Button
+        isActive={activePanel === 'inventory'}
+        w="100%"
+        textAlign="center"
+        fontWeight="semibold"
+        onClick={() => setActivePanel('inventory')}
+        colorScheme={activePanel === 'inventory' ? 'teal' : 'gray'}
+        variant={activePanel === 'inventory' ? 'solid' : 'ghost'}
+      >
+        Inventory
+      </Button>
+      {isAdmin && (
+        <Button
+          isActive={activePanel === 'settings'}
+          w="100%"
+          textAlign="center"
+          fontWeight="semibold"
+          onClick={() => setActivePanel('settings')}
+          colorScheme={activePanel === 'settings' ? 'teal' : 'gray'}
+          variant={activePanel === 'settings' ? 'solid' : 'ghost'}
+        >
+          Settings
+        </Button>
+      )}
     </VStack>
     <Spacer />
+    <VStack spacing={2} mb={4}>
+      <Badge 
+        colorScheme={userRole === 'admin' ? 'red' : 'blue'}
+        variant="subtle"
+        fontSize="sm"
+      >
+        {userRole || 'manager'}
+      </Badge>
+    </VStack>
     <Button w="100%" mt={8} onClick={onLogout}>
       Logout
     </Button>
@@ -49,19 +85,46 @@ const Sidenav = ({ activePanel, setActivePanel, onLogout }) => (
 );
 
 const DashboardPage = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, userRole, isAdmin } = useAuth();
   const [activePanel, setActivePanel] = useState('dashboard');
+  const isMobile = useBreakpointValue({ base: true, md: false });
 
   // Handle logout
   const handleLogout = async () => {
     await logout();
   };
 
+  const renderPanel = () => {
+    switch (activePanel) {
+      case 'dashboard':
+        return <DashboardPanel />;
+      case 'products':
+        return <ProductsPanel />;
+      case 'inventory':
+        return <InventoryPanel />;
+      case 'settings':
+        return <SettingsPanel />;
+      default:
+        return <DashboardPanel />;
+    }
+  };
+
   return (
-    <Flex minH="100vh" minW="100vw" bg="gray.50">
-      <Sidenav activePanel={activePanel} setActivePanel={setActivePanel} onLogout={handleLogout} />
-      <Flex flex="1" alignItems="center" justifyContent="center">
-        {activePanel === 'dashboard' ? <DashboardPanel /> : <ProductsPanel />}
+    <Flex h={ isMobile ? "calc(100vh - 50px)" : '100vh'} minW="100vw" bg="white" direction="column">
+      {isMobile && <Navbar activePanel={activePanel} setActivePanel={setActivePanel} />}
+      <Flex flex="1" w="100%">
+        {!isMobile && (
+          <Sidenav 
+            activePanel={activePanel} 
+            setActivePanel={setActivePanel} 
+            onLogout={handleLogout}
+            userRole={userRole}
+            isAdmin={isAdmin}
+          />
+        )}
+        <Flex flex="1" alignItems="center" justifyContent="center">
+          {renderPanel()}
+        </Flex>
       </Flex>
     </Flex>
   );
