@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Heading, Switch, FormControl, FormLabel, Spinner, useToast } from '@chakra-ui/react';
+import { Box, Heading, Switch, FormControl, FormLabel, Spinner, useToast, VStack } from '@chakra-ui/react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,6 +9,7 @@ const SETTINGS_DOC_ID = 'global';
 const SettingsPanel = () => {
   const { isAdmin } = useAuth();
   const [managerCanEdit, setManagerCanEdit] = useState(true);
+  const [managerCanEditDescription, setManagerCanEditDescription] = useState(false);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
 
@@ -20,6 +21,7 @@ const SettingsPanel = () => {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setManagerCanEdit(docSnap.data().managerCanEditInventory ?? true);
+          setManagerCanEditDescription(docSnap.data().managerCanEditDescription ?? false);
         }
       } catch (err) {
         toast({
@@ -60,30 +62,76 @@ const SettingsPanel = () => {
     setLoading(false);
   };
 
+  const handleDescriptionToggle = async () => {
+    setLoading(true);
+    try {
+      const newValue = !managerCanEditDescription;
+      setManagerCanEditDescription(newValue);
+      await setDoc(doc(db, 'settings', SETTINGS_DOC_ID), { managerCanEditDescription: newValue }, { merge: true });
+      toast({
+        title: 'Setting Updated',
+        description: `Managers can ${newValue ? '' : 'no longer '}edit product descriptions.`,
+        status: 'success',
+        duration: 2000,
+        isClosable: true,
+      });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update setting',
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    }
+    setLoading(false);
+  };
+
   if (!isAdmin) return null;
 
   return (
-    <Box minW="calc(100vw - 220px)" minH="100vh" p={2} borderWidth={1} textAlign="center" bg="white">
+    <Box minW="calc(100vw - 220px)" minH="100vh" p={2} textAlign="center" bg="white">
       <Heading mb={6}>Settings</Heading>
-      <FormControl display="flex" alignItems="center" justifyContent="center" mt={16}>
-        <FormLabel htmlFor="manager-edit-toggle" mb="0">
-          Allow managers to edit inventory
-        </FormLabel>
-        {/* {loading ? <Spinner size="sm" ml={4} /> : ( */}
-        {/* //   <Switch */}
-        {/* //     id="manager-edit-toggle"
-        //     isChecked={managerCanEdit}
-        //     onChange={handleToggle}
-        //     colorScheme="teal"
-        //   />
-        // )} */}
-        <Switch
-            id="manager-edit-toggle"
-            isChecked={managerCanEdit}
-            onChange={handleToggle}
-            colorScheme="teal"
+      <VStack align="stretch" spacing={6} mt={16}>
+        <FormControl display="flex" alignItems="center" justifyContent="center">
+          <FormLabel htmlFor="manager-edit-toggle" mb="0">
+            Allow managers to edit inventory
+          </FormLabel>
+          {/* {loading ? <Spinner size="sm" ml={4} /> : (
+            <Switch
+              id="manager-edit-toggle"
+              isChecked={managerCanEdit}
+              onChange={handleToggle}
+              colorScheme="teal"
+            />
+          )} */}
+          <Switch
+              id="manager-edit-toggle"
+              isChecked={managerCanEdit}
+              onChange={handleToggle}
+              colorScheme="teal"
           />
-      </FormControl>
+        </FormControl>
+        {/* <FormControl display="flex" alignItems="center" justifyContent="center">
+          <FormLabel htmlFor="manager-edit-description-toggle" mb="0">
+            Allow managers to edit product description
+          </FormLabel>
+          {/* {loading ? <Spinner size="sm" ml={4} /> : (
+            <Switch
+              id="manager-edit-description-toggle"
+              isChecked={managerCanEditDescription}
+              onChange={handleDescriptionToggle}
+              colorScheme="teal"
+            />
+          )} */}
+          {/* <Switch
+              id="manager-edit-description-toggle"
+              isChecked={managerCanEditDescription}
+              onChange={handleDescriptionToggle}
+              colorScheme="teal"
+        //   />
+        // </FormControl> */} 
+      </VStack>
     </Box>
   );
 };

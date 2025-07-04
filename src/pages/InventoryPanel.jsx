@@ -49,7 +49,7 @@ const InventoryPanel = () => {
   
   // Edit modal state
   const [editingProduct, setEditingProduct] = useState(null);
-  const [editForm, setEditForm] = useState({ sku: '', name: '', price: '' });
+  const [editForm, setEditForm] = useState({ sku: '', name: '', price: '', description: '' });
   const [updatingProduct, setUpdatingProduct] = useState(false);
   const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
   
@@ -71,6 +71,8 @@ const InventoryPanel = () => {
   const toast = useToast();
   const tableFontSize = useBreakpointValue({ base: 'xs', md: 'sm' });
   const [managerCanEdit, setManagerCanEdit] = useState(true);
+  const [managerCanEditDescription, setManagerCanEditDescription] = useState(false);
+  const isMobile = useBreakpointValue({ base: true, md: false });
 
   // Calculate total pages
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -98,6 +100,22 @@ const InventoryPanel = () => {
       }
     };
     fetchManagerCanEdit();
+  }, []);
+
+  useEffect(() => {
+    // Fetch managerCanEditDescription setting
+    const fetchManagerCanEditDescription = async () => {
+      try {
+        const docRef = doc(db, 'settings', 'global');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setManagerCanEditDescription(docSnap.data().managerCanEditDescription ?? false);
+        }
+      } catch (err) {
+        setManagerCanEditDescription(false);
+      }
+    };
+    fetchManagerCanEditDescription();
   }, []);
 
   const fetchTotalCount = async () => {
@@ -133,7 +151,8 @@ const InventoryPanel = () => {
       const productsList = productsSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        quantity: 0 // Default quantity
+        quantity: 0, // Default quantity
+        description: doc.data().description || ''
       }));
 
       // Fetch inventory data and merge with products
@@ -146,7 +165,8 @@ const InventoryPanel = () => {
       // Merge products with their inventory quantities
       const mergedProducts = productsList.map(product => ({
         ...product,
-        quantity: inventoryMap[product.sku] || 0
+        quantity: inventoryMap[product.sku] || 0,
+        description: product.description || ''
       }));
 
       setProducts(mergedProducts);
@@ -344,7 +364,8 @@ const InventoryPanel = () => {
     setEditForm({
       sku: product.sku,
       name: product.name,
-      price: product.price.toString()
+      price: product.price.toString(),
+      description: product.description || ''
     });
     onEditOpen();
   };
@@ -388,6 +409,7 @@ const InventoryPanel = () => {
         sku: editForm.sku,
         name: editForm.name,
         price: parseFloat(editForm.price),
+        ...(isAdmin ? { description: editForm.description } : {})
       });
 
       // Refresh the data
@@ -395,7 +417,7 @@ const InventoryPanel = () => {
       
       onEditClose();
       setEditingProduct(null);
-      setEditForm({ sku: '', name: '', price: '' });
+      setEditForm({ sku: '', name: '', price: '', description: '' });
       
       toast({
         title: 'Product Updated',
@@ -418,11 +440,11 @@ const InventoryPanel = () => {
   };
 
   return (
-    <Box minW="calc(100vw - 220px)" minH="100vh" p={2} borderWidth={1} textAlign="center" bg="white">
+    <Box minW={isMobile ? "100vw" : "calc(100vw - 220px)"} minH={isMobile ? '' : "100vh"} p={ isMobile ? 0 : 2} textAlign="center" bg="white">
       <Heading mb={4}>Inventory</Heading>
       <Text mb={8}>View and edit quantities for your products.</Text>
       
-      <Box maxW="100%" height="300px" overflow="auto"  p={2} borderWidth={1} borderRadius="md">
+      <Box maxW="100%" height="300px" overflow="auto"  p={ isMobile ? 0 : 2} borderWidth={1} borderRadius="md">
         {fetching ? (
           <Box display="flex" justifyContent="center" alignItems="center" height="300px">
             <Spinner />
@@ -433,6 +455,7 @@ const InventoryPanel = () => {
               <Tr>
                 <Th>SKU</Th>
                 <Th>Product Name</Th>
+                { isMobile ? '' : <Th>Description</Th>}
                 <Th textAlign="right">Quantity</Th>
                 {(isAdmin || (isManager && managerCanEdit)) && <Th textAlign="right">Actions</Th>}
               </Tr>
@@ -442,6 +465,7 @@ const InventoryPanel = () => {
                 <Tr key={product.id}>
                   <Td>{product.sku}</Td>
                   <Td>{product.name}</Td>
+                  <Td>{product.description}</Td>
                   <Td textAlign="right">{product.quantity}</Td>
                   {(isAdmin || (isManager && managerCanEdit)) && (
                     <Td textAlign="right">
@@ -632,6 +656,17 @@ const InventoryPanel = () => {
                   <NumberInputField placeholder="Enter price" />
                 </NumberInput>
               </FormControl>
+              {(isAdmin || managerCanEditDescription) && (
+                <FormControl id="edit-description" mb={4}>
+                  <FormLabel>Description</FormLabel>
+                  <Input
+                    name="description"
+                    value={editForm.description}
+                    onChange={handleEditChange}
+                    placeholder="Enter product description"
+                  />
+                </FormControl>
+              )}
             </ModalBody>
 
             <ModalFooter>

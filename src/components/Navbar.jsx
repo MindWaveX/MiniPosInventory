@@ -17,7 +17,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 const Navbar = ({ activePanel, setActivePanel }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const { logout, isAdmin } = useAuth();
+  const { logout, isAdmin, isManager } = useAuth();
 
   const handleLogout = async () => {
     try {
@@ -32,7 +32,12 @@ const Navbar = ({ activePanel, setActivePanel }) => {
     { name: 'Dashboard', panel: 'dashboard' },
     { name: 'Products', panel: 'products' },
     { name: 'Inventory', panel: 'inventory' },
-    ...(isAdmin ? [{ name: 'Settings', panel: 'settings' }] : [])
+    ...(isAdmin || isManager ? [
+      { name: 'Customers', panel: 'customers' }
+    ] : []),
+    ...(isAdmin ? [
+      { name: 'Settings', panel: 'settings' }
+    ] : [])
   ];
 
   return (

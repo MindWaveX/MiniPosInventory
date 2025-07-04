@@ -40,14 +40,14 @@ import {
   FormLabel
 } from '@chakra-ui/react';
 import { BsThreeDotsVertical } from 'react-icons/bs';
-import { collection, getDocs, addDoc, query, where, deleteDoc, doc, limit, startAfter, orderBy, getCountFromServer, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, where, deleteDoc, doc, limit, startAfter, orderBy, getCountFromServer, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import Pagination from '../components/Pagination';
 
 const ProductsPanel = () => {
   const [items, setItems] = useState([]);
-  const [form, setForm] = useState({ sku: '', name: '', price: '' });
+  const [form, setForm] = useState({ sku: '', name: '', price: '', description: '' });
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [deleting, setDeleting] = useState({});
@@ -55,7 +55,7 @@ const ProductsPanel = () => {
   
   // Edit modal state
   const [editingProduct, setEditingProduct] = useState(null);
-  const [editForm, setEditForm] = useState({ sku: '', name: '', price: '' });
+  const [editForm, setEditForm] = useState({ sku: '', name: '', price: '', description: '' });
   const [updating, setUpdating] = useState(false);
   const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
   
@@ -72,6 +72,7 @@ const ProductsPanel = () => {
   const cancelRef = React.useRef();
   const tableFontSize = useBreakpointValue({ base: 'xs', md: 'sm' });
   const isMobile = useBreakpointValue({ base: true, md: false });
+  const [managerCanEditDescription, setManagerCanEditDescription] = useState(false);
 
   // Calculate total pages
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -83,6 +84,22 @@ const ProductsPanel = () => {
   useEffect(() => {
     fetchProducts();
   }, [currentPage, itemsPerPage]);
+
+  useEffect(() => {
+    // Fetch managerCanEditDescription setting
+    const fetchManagerCanEditDescription = async () => {
+      try {
+        const docRef = doc(db, 'settings', 'global');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setManagerCanEditDescription(docSnap.data().managerCanEditDescription ?? false);
+        }
+      } catch (err) {
+        setManagerCanEditDescription(false);
+      }
+    };
+    fetchManagerCanEditDescription();
+  }, []);
 
   const fetchTotalCount = async () => {
     try {
@@ -117,6 +134,7 @@ const ProductsPanel = () => {
       const productsList = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
+        description: doc.data().description || ''
       }));
 
       setItems(productsList);
@@ -180,7 +198,8 @@ const ProductsPanel = () => {
     setEditForm({
       sku: product.sku,
       name: product.name,
-      price: product.price.toString()
+      price: product.price.toString(),
+      description: product.description || ''
     });
     onEditOpen();
   };
@@ -224,6 +243,7 @@ const ProductsPanel = () => {
         sku: editForm.sku,
         name: editForm.name,
         price: parseFloat(editForm.price),
+        ...(isAdmin ? { description: editForm.description } : {})
       });
 
       // Refresh the data
@@ -231,7 +251,7 @@ const ProductsPanel = () => {
       
       onEditClose();
       setEditingProduct(null);
-      setEditForm({ sku: '', name: '', price: '' });
+      setEditForm({ sku: '', name: '', price: '', description: '' });
       
       toast({
         title: 'Product Updated',
@@ -280,13 +300,14 @@ const ProductsPanel = () => {
         sku: form.sku,
         name: form.name,
         price: parseFloat(form.price),
+        description: form.description || ''
       });
       
       // Refresh the data to show the new product
       await fetchTotalCount();
       await fetchProducts();
       
-      setForm({ sku: '', name: '', price: '' });
+      setForm({ sku: '', name: '', price: '', description: '' });
       
       toast({
         title: 'Product Added',
@@ -401,8 +422,9 @@ const ProductsPanel = () => {
             <Thead>
               <Tr>
                 <Th>SKU</Th>
-                <Th>Name</Th>
-                <Th textAlign="right">Price</Th>
+                <Th>Product Name</Th>
+                { isMobile ? '' : <Th>Description</Th>}
+                <Th>Price</Th>
                 {isAdmin && <Th textAlign="right">Actions</Th>}
               </Tr>
             </Thead>
@@ -411,7 +433,8 @@ const ProductsPanel = () => {
                 <Tr key={item.id}>
                   <Td>{item.sku}</Td>
                   <Td>{item.name}</Td>
-                  <Td textAlign="right">Rs {item.price?.toFixed(2)}</Td>
+                  { isMobile ? '' : <Td>{item.description}</Td>}
+                  <Td textAlign="left">Rs {item.price?.toFixed(2)}</Td>
                   {isAdmin && (
                     <Td textAlign="right">
                       <Menu>
@@ -494,6 +517,18 @@ const ProductsPanel = () => {
                   <NumberInputField placeholder="Enter price" />
                 </NumberInput>
               </FormControl>
+
+              {(isAdmin || managerCanEditDescription) && (
+                <FormControl id="edit-description" mb={4}>
+                  <FormLabel>Description</FormLabel>
+                  <Input
+                    name="description"
+                    value={editForm.description}
+                    onChange={handleEditChange}
+                    placeholder="Enter product description"
+                  />
+                </FormControl>
+              )}
             </ModalBody>
 
             <ModalFooter>
