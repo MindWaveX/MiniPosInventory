@@ -479,7 +479,7 @@ const ProductsPanel = () => {
       />
 
       {/* Edit Product Modal */}
-      <Modal isOpen={isEditOpen} onClose={onEditClose}>
+      <Modal isOpen={isEditOpen} onClose={onEditClose} isCentered>
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Edit Product</ModalHeader>

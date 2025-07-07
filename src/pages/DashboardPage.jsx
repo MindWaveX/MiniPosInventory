@@ -7,6 +7,7 @@ import InventoryPanel from './InventoryPanel';
 import SettingsPanel from './SettingsPanel';
 import Navbar from '../components/Navbar';
 import CustomersPanel from './CustomersPanel';
+import SalesPanel from './SalesPanel';
 
 const Sidenav = ({ activePanel, setActivePanel, onLogout, userRole, isAdmin }) => (
   <Flex
@@ -54,6 +55,17 @@ const Sidenav = ({ activePanel, setActivePanel, onLogout, userRole, isAdmin }) =
         variant={activePanel === 'inventory' ? 'solid' : 'ghost'}
       >
         Inventory
+      </Button>
+      <Button
+        isActive={activePanel === 'sales'}
+        w="100%"
+        textAlign="center"
+        fontWeight="semibold"
+        onClick={() => setActivePanel('sales')}
+        colorScheme={activePanel === 'sales' ? 'teal' : 'gray'}
+        variant={activePanel === 'sales' ? 'solid' : 'ghost'}
+      >
+        Sales
       </Button>
       {(isAdmin || userRole === 'manager') && (
         <Button
@@ -116,6 +128,8 @@ const DashboardPage = () => {
         return <ProductsPanel />;
       case 'inventory':
         return <InventoryPanel />;
+      case 'sales':
+        return <SalesPanel />;
       case 'customers':
         return <CustomersPanel />;
       case 'settings':

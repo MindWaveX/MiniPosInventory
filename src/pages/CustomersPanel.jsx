@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Box, Heading, Table, Thead, Tbody, Tr, Th, Td, FormControl, Input, Button, useToast, HStack, Spinner, Menu, MenuButton, MenuList, MenuItem, Icon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay, useDisclosure } from '@chakra-ui/react';
+import { Box, Heading, Table, Thead, Tbody, Tr, Th, Td, FormControl, Input, Button, useToast, HStack, Spinner, Menu, MenuButton, MenuList, MenuItem, Icon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay, useDisclosure, useBreakpointValue } from '@chakra-ui/react';
 import { BsThreeDotsVertical } from 'react-icons/bs';
 import { collection, addDoc, getDocs, orderBy, query, limit, startAfter, getCountFromServer, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -26,6 +26,7 @@ const CustomersPanel = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const cancelRef = useRef();
   const toast = useToast();
+  const isMobile = useBreakpointValue({ base: true, md: false });
 
   const totalPages = Math.ceil(totalItems / itemsPerPage);
 
@@ -221,10 +222,10 @@ const CustomersPanel = () => {
   if (!isAdmin && !isManager) return null;
 
   return (
-    <Box minW="calc(100vw - 220px)" minH="100vh" p={2} textAlign="center" bg="white">
+    <Box minW={isMobile ? "100vw" : "calc(100vw - 220px)"} minH="100vh" p={2} textAlign="center" bg="white">
       <Heading mb={6}>Customers</Heading>
       {isAdmin && (
-        <Box as="form" onSubmit={handleAdd} mt={6} mb={4} p={2} borderWidth={1} borderRadius="md" bg="gray.50" mx="auto">
+        <Box as="form" onSubmit={handleAdd} mt={6} mb={4} p={2} borderWidth={1} borderRadius="md" bg="gray.50">
           <HStack spacing={3} justifyContent="space-between" w='100%'>
             <Input
               name="name"
@@ -250,13 +251,13 @@ const CustomersPanel = () => {
           </HStack>
         </Box>
       )}
-      <Box maxW="100%" height="300px" overflow="auto" p={2} borderWidth={1} borderRadius="md" mb={4}>
+      <Box w="100%" height="300px" overflow="auto" p={0} borderWidth={1} borderRadius="md" mb={4}>
         {fetching ? (
           <Box display="flex" justifyContent="center" alignItems="center" height="300px">
             <Spinner />
           </Box>
         ) : (
-          <Table variant="striped" size="sm" mx="auto">
+          <Table variant="striped" size="sm">
             <Thead>
               <Tr>
                 <Th>Name</Th>
@@ -303,7 +304,7 @@ const CustomersPanel = () => {
       />
 
       {/* Edit Customer Modal */}
-      <Modal isOpen={isEditOpen} onClose={onEditClose}>
+      <Modal isOpen={isEditOpen} onClose={onEditClose} isCentered>
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Edit Customer</ModalHeader>

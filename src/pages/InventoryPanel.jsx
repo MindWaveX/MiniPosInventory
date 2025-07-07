@@ -511,7 +511,7 @@ const InventoryPanel = () => {
       />
 
       {/* Edit Quantity Modal */}
-      <Modal isOpen={isQuantityOpen} onClose={onQuantityClose}>
+      <Modal isOpen={isQuantityOpen} onClose={onQuantityClose} isCentered>
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Edit Quantity</ModalHeader>
@@ -618,7 +618,7 @@ const InventoryPanel = () => {
       </Modal>
 
       {/* Edit Product Modal */}
-      <Modal isOpen={isEditOpen} onClose={onEditClose}>
+      <Modal isOpen={isEditOpen} onClose={onEditClose} isCentered>
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Edit Product</ModalHeader>
