@@ -8,8 +8,11 @@ import SettingsPanel from './SettingsPanel';
 import Navbar from '../components/Navbar';
 import CustomersPanel from './CustomersPanel';
 import SalesPanel from './SalesPanel';
+import ReportsPanel from './ReportsPanel';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
-const Sidenav = ({ activePanel, setActivePanel, onLogout, userRole, isAdmin }) => (
+const Sidenav = ({ activePanel, setActivePanel, onLogout, userRole, isAdmin, managerCanViewReports }) => (
   <Flex
     direction="column"
     w="220px"
@@ -93,6 +96,19 @@ const Sidenav = ({ activePanel, setActivePanel, onLogout, userRole, isAdmin }) =
           Settings
         </Button>
       )}
+      {(isAdmin || (userRole === 'manager' && managerCanViewReports)) && (
+        <Button
+          isActive={activePanel === 'reports'}
+          w="100%"
+          textAlign="center"
+          fontWeight="semibold"
+          onClick={() => setActivePanel('reports')}
+          colorScheme={activePanel === 'reports' ? 'teal' : 'gray'}
+          variant={activePanel === 'reports' ? 'solid' : 'ghost'}
+        >
+          Reports
+        </Button>
+      )}
     </VStack>
     <Spacer />
     <VStack spacing={2} mb={4}>
@@ -114,6 +130,22 @@ const DashboardPage = () => {
   const { user, logout, userRole, isAdmin } = useAuth();
   const [activePanel, setActivePanel] = useState('dashboard');
   const isMobile = useBreakpointValue({ base: true, md: false });
+  const [managerCanViewReports, setManagerCanViewReports] = useState(false);
+
+  React.useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const docRef = doc(db, 'settings', 'global');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setManagerCanViewReports(docSnap.data().managerCanViewReports ?? false);
+        }
+      } catch (err) {
+        setManagerCanViewReports(false);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   // Handle logout
   const handleLogout = async () => {
@@ -134,6 +166,8 @@ const DashboardPage = () => {
         return <CustomersPanel />;
       case 'settings':
         return <SettingsPanel />;
+      case 'reports':
+        return <ReportsPanel />;
       default:
         return <DashboardPanel />;
     }
@@ -150,6 +184,7 @@ const DashboardPage = () => {
             onLogout={handleLogout}
             userRole={userRole}
             isAdmin={isAdmin}
+            managerCanViewReports={managerCanViewReports}
           />
         )}
         <Flex flex="1" alignItems="center" justifyContent="center">

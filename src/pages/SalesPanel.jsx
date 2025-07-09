@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { Box, Heading, Table, Thead, Tbody, Tr, Th, Td, Spinner, Button, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, FormControl, FormLabel, Input, Select, VStack, HStack, Text, IconButton, useToast, useDisclosure, Menu, MenuButton, MenuList, MenuItem, Icon, useBreakpointValue } from '@chakra-ui/react';
+import React, { useEffect, useState, useRef } from 'react';
+import { Box, Heading, Table, Thead, Tbody, Tr, Th, Td, Spinner, Button, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, FormControl, FormLabel, Input, Select, VStack, HStack, Text, IconButton, useToast, useDisclosure, Menu, MenuButton, MenuList, MenuItem, Icon, useBreakpointValue, List, ListItem } from '@chakra-ui/react';
 import { AddIcon, CloseIcon } from '@chakra-ui/icons';
-import { collection, getDocs, orderBy, query, limit, startAfter, getCountFromServer, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, orderBy, query, limit, startAfter, getCountFromServer, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import Pagination from '../components/Pagination';
@@ -33,6 +33,14 @@ const SalesPanel = () => {
   const { isOpen: isViewOpen, onOpen: onViewOpen, onClose: onViewClose } = useDisclosure();
   const toast = useToast();
   const isMobile = useBreakpointValue({ base: true, md: false });
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [productSearch, setProductSearch] = useState([]);
+  const [showProductDropdown, setShowProductDropdown] = useState([]);
+  
+  // Refs for click-outside detection
+  const customerDropdownRef = useRef(null);
+  const productDropdownRefs = useRef([]);
 
   const totalPages = Math.ceil(totalItems / itemsPerPage);
 
@@ -50,6 +58,44 @@ const SalesPanel = () => {
   useEffect(() => {
     generateInvoiceNumber();
   }, [form.date]);
+
+  // Click-outside handler for customer dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (customerDropdownRef.current && !customerDropdownRef.current.contains(event.target)) {
+        setShowCustomerDropdown(false);
+      }
+    };
+
+    if (showCustomerDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showCustomerDropdown]);
+
+  // Click-outside handler for product dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const clickedOutsideAll = productDropdownRefs.current.every(ref => 
+        !ref || !ref.contains(event.target)
+      );
+      
+      if (clickedOutsideAll && showProductDropdown.some(show => show)) {
+        setShowProductDropdown(prev => prev.map(() => false));
+      }
+    };
+
+    if (showProductDropdown.some(show => show)) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showProductDropdown]);
 
   const generateInvoiceNumber = async () => {
     if (!form.date) return;
@@ -129,13 +175,13 @@ const SalesPanel = () => {
     try {
       let salesQuery = query(
         collection(db, 'sales'),
-        orderBy('date', 'desc'),
+        orderBy('invoiceNo', 'desc'),
         limit(itemsPerPage)
       );
       if (currentPage > 1 && pageSnapshots[currentPage - 1]) {
         salesQuery = query(
           collection(db, 'sales'),
-          orderBy('date', 'desc'),
+          orderBy('invoiceNo', 'desc'),
           startAfter(pageSnapshots[currentPage - 1]),
           limit(itemsPerPage)
         );
@@ -189,10 +235,14 @@ const SalesPanel = () => {
 
   const addItem = () => {
     setItems(prev => [...prev, { productId: '', productName: '', quantity: '', price: 0, total: 0 }]);
+    setProductSearch(prev => [...prev, '']);
+    setShowProductDropdown(prev => [...prev, false]);
   };
 
   const removeItem = (index) => {
     setItems(prev => prev.filter((_, i) => i !== index));
+    setProductSearch(prev => prev.filter((_, i) => i !== index));
+    setShowProductDropdown(prev => prev.filter((_, i) => i !== index));
   };
 
   const updateItem = (index, field, value) => {
@@ -282,6 +332,26 @@ const SalesPanel = () => {
       };
 
       await addDoc(collection(db, 'sales'), saleData);
+      
+      // Deduct sold quantities from inventory
+      for (const item of items) {
+        const product = products.find(p => p.id === item.productId);
+        if (!product) continue;
+        const inventoryItem = inventory.find(inv => inv.sku === product.sku);
+        if (!inventoryItem) continue;
+        const newQuantity = (inventoryItem.quantity || 0) - (parseFloat(item.quantity) || 0);
+        try {
+          await updateDoc(doc(db, 'inventory', inventoryItem.id), { quantity: newQuantity });
+        } catch (err) {
+          toast({
+            title: 'Inventory Update Error',
+            description: `Failed to update inventory for ${product.name}`,
+            status: 'error',
+            duration: 4000,
+            isClosable: true,
+          });
+        }
+      }
       
       toast({
         title: 'Sale Added',
@@ -512,18 +582,42 @@ const SalesPanel = () => {
                 
                 <FormControl isRequired>
                   <FormLabel>Customer</FormLabel>
-                  <Select
-                    name="customerId"
-                    value={form.customerId}
-                    onChange={handleFormChange}
-                    placeholder="Select customer"
-                  >
-                    {customers.map(customer => (
-                      <option key={customer.id} value={customer.id}>
-                        {customer.name} - {customer.company}
-                      </option>
-                    ))}
-                  </Select>
+                  <Input
+                    placeholder="Search customer by name"
+                    value={customerSearch}
+                    onChange={e => {
+                      setCustomerSearch(e.target.value);
+                      setShowCustomerDropdown(true);
+                    }}
+                    autoComplete="off"
+                    onFocus={() => setShowCustomerDropdown(true)}
+                    ref={customerDropdownRef}
+                  />
+                  {showCustomerDropdown && (
+                    <Box ref={customerDropdownRef} borderWidth={1} borderRadius="md" bg="white" maxH="120px" overflowY="auto" position="absolute" zIndex={10} w="100%">
+                      <List spacing={0}>
+                        {customers
+                          .filter(c =>
+                            !customerSearch
+                              ? true
+                              : c.name.toLowerCase().includes(customerSearch.toLowerCase())
+                          )
+                          .map(customer => (
+                            <ListItem
+                              key={customer.id}
+                              px={3} py={2} _hover={{ bg: 'gray.100', cursor: 'pointer' }}
+                              onClick={() => {
+                                setForm(prev => ({ ...prev, customerId: customer.id, customerName: customer.name }));
+                                setCustomerSearch(customer.name);
+                                setShowCustomerDropdown(false);
+                              }}
+                            >
+                              {customer.name} - {customer.company}
+                            </ListItem>
+                          ))}
+                      </List>
+                    </Box>
+                  )}
                 </FormControl>
 
                 <Box w="100%" bg='' overflow='auto'>
@@ -540,17 +634,45 @@ const SalesPanel = () => {
                         <HStack spacing={2}>
                           <FormControl isRequired>
                             <FormLabel fontSize="sm">Product</FormLabel>
-                            <Select size="sm"
-                              value={item.productId}
-                              onChange={(e) => updateItem(index, 'productId', e.target.value)}
-                              placeholder="Product"
-                            >
-                              {products.map(product => (
-                                <option key={product.id} value={product.id}>
-                                  {product.name} - Rs {product.price}
-                                </option>
-                              ))}
-                            </Select>
+                            <Input
+                              size="sm"
+                              placeholder="Search product by name or SKU"
+                              value={productSearch[index] || ''}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setProductSearch(prev => prev.map((s, i) => i === index ? val : s));
+                                setShowProductDropdown(prev => prev.map((show, i) => i === index ? true : show));
+                              }}
+                              autoComplete="off"
+                              onFocus={() => setShowProductDropdown(prev => prev.map((show, i) => i === index ? true : show))}
+                              ref={el => productDropdownRefs.current[index] = el}
+                            />
+                            {showProductDropdown[index] && (
+                              <Box ref={el => productDropdownRefs.current[index] = el} borderWidth={1} borderRadius="md" bg="white" maxH="120px" overflowY="auto" position="absolute" zIndex={10} w="200%" minW="300px">
+                                <List spacing={0}>
+                                  {products
+                                    .filter(product =>
+                                      !productSearch[index]
+                                        ? true
+                                        : product.name.toLowerCase().includes(productSearch[index].toLowerCase()) ||
+                                          (product.sku && product.sku.toLowerCase().includes(productSearch[index].toLowerCase()))
+                                    )
+                                    .map(product => (
+                                      <ListItem
+                                        key={product.id}
+                                        px={3} py={2} _hover={{ bg: 'gray.100', cursor: 'pointer' }}
+                                        onClick={() => {
+                                          updateItem(index, 'productId', product.id);
+                                          setProductSearch(prev => prev.map((s, i) => i === index ? product.name : s));
+                                          setShowProductDropdown(prev => prev.map((show, i) => i === index ? false : show));
+                                        }}
+                                      >
+                                        {product.name} - Rs {product.price} {product.sku ? `(${product.sku})` : ''}
+                                      </ListItem>
+                                    ))}
+                                </List>
+                              </Box>
+                            )}
                           </FormControl>
                           
                           <FormControl isRequired>
@@ -559,6 +681,9 @@ const SalesPanel = () => {
                               type="number"
                               value={item.quantity}
                               onChange={(e) => updateItem(index, 'quantity', e.target.value)}
+                              bg="gray.50"
+                              color="gray.600"
+                              _placeholder={{ color: "gray.400" }}
                             />
                           </FormControl>
                           
@@ -568,7 +693,9 @@ const SalesPanel = () => {
                               type="number"
                               min="0"
                               value={item.price}
-                              onChange={(e) => updateItem(index, 'price', parseFloat(e.target.value))}
+                              isDisabled
+                              bg="gray.100"
+                              color="gray.500"
                             />
                           </FormControl>
                           
@@ -576,7 +703,9 @@ const SalesPanel = () => {
                             <FormLabel fontSize="sm">Total</FormLabel>
                             <Input size="sm"
                               value={`Rs ${item.total?.toFixed(2)}`}
-                              isReadOnly
+                              isDisabled
+                              bg="gray.100"
+                              color="gray.500"
                             />
                           </FormControl>
                           

@@ -10,6 +10,7 @@ const SettingsPanel = () => {
   const { isAdmin } = useAuth();
   const [managerCanEdit, setManagerCanEdit] = useState(true);
   const [managerCanEditDescription, setManagerCanEditDescription] = useState(false);
+  const [managerCanViewReports, setManagerCanViewReports] = useState(false);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
 
@@ -22,6 +23,7 @@ const SettingsPanel = () => {
         if (docSnap.exists()) {
           setManagerCanEdit(docSnap.data().managerCanEditInventory ?? true);
           setManagerCanEditDescription(docSnap.data().managerCanEditDescription ?? false);
+          setManagerCanViewReports(docSnap.data().managerCanViewReports ?? false);
         }
       } catch (err) {
         toast({
@@ -87,6 +89,31 @@ const SettingsPanel = () => {
     setLoading(false);
   };
 
+  const handleReportsToggle = async () => {
+    setLoading(true);
+    try {
+      const newValue = !managerCanViewReports;
+      setManagerCanViewReports(newValue);
+      await setDoc(doc(db, 'settings', SETTINGS_DOC_ID), { managerCanViewReports: newValue }, { merge: true });
+      toast({
+        title: 'Setting Updated',
+        description: `Managers can ${newValue ? '' : 'no longer '}view the Reports Panel.`,
+        status: 'success',
+        duration: 2000,
+        isClosable: true,
+      });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update setting',
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    }
+    setLoading(false);
+  };
+
   if (!isAdmin) return null;
 
   return (
@@ -97,14 +124,6 @@ const SettingsPanel = () => {
           <FormLabel htmlFor="manager-edit-toggle" mb="0">
             Allow managers to edit inventory
           </FormLabel>
-          {/* {loading ? <Spinner size="sm" ml={4} /> : (
-            <Switch
-              id="manager-edit-toggle"
-              isChecked={managerCanEdit}
-              onChange={handleToggle}
-              colorScheme="teal"
-            />
-          )} */}
           <Switch
               id="manager-edit-toggle"
               isChecked={managerCanEdit}
@@ -112,25 +131,28 @@ const SettingsPanel = () => {
               colorScheme="teal"
           />
         </FormControl>
-        {/* <FormControl display="flex" alignItems="center" justifyContent="center">
+        <FormControl display="flex" alignItems="center" justifyContent="center">
           <FormLabel htmlFor="manager-edit-description-toggle" mb="0">
             Allow managers to edit product description
           </FormLabel>
-          {/* {loading ? <Spinner size="sm" ml={4} /> : (
-            <Switch
+          <Switch
               id="manager-edit-description-toggle"
               isChecked={managerCanEditDescription}
               onChange={handleDescriptionToggle}
               colorScheme="teal"
-            />
-          )} */}
-          {/* <Switch
-              id="manager-edit-description-toggle"
-              isChecked={managerCanEditDescription}
-              onChange={handleDescriptionToggle}
-              colorScheme="teal"
-        //   />
-        // </FormControl> */} 
+          />
+        </FormControl>
+        <FormControl display="flex" alignItems="center" justifyContent="center">
+          <FormLabel htmlFor="manager-reports-toggle" mb="0">
+            Allow managers to view Reports Panel
+          </FormLabel>
+          <Switch
+            id="manager-reports-toggle"
+            isChecked={managerCanViewReports}
+            onChange={handleReportsToggle}
+            colorScheme="teal"
+          />
+        </FormControl>
       </VStack>
     </Box>
   );
