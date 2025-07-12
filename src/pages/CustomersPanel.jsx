@@ -262,7 +262,7 @@ const CustomersPanel = () => {
               <Tr>
                 <Th>Name</Th>
                 <Th>Company</Th>
-                {isAdmin && <Th textAlign="right">Actions</Th>}
+                {isAdmin && <Th></Th>}
               </Tr>
             </Thead>
             <Tbody>

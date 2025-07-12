@@ -14,6 +14,7 @@ import {
 } from '@chakra-ui/react';
 import { HamburgerIcon, CloseIcon } from '@chakra-ui/icons';
 import { useAuth } from '../contexts/AuthContext';
+import Notifications from './Notifications';
 
 const Navbar = ({ activePanel, setActivePanel }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -68,8 +69,8 @@ const Navbar = ({ activePanel, setActivePanel }) => {
           </HStack>
         </HStack>
 
-        <Flex alignItems="center">
-          <Menu>
+        <Flex alignItems="center" bg='white' borderRadius='md' bgSize='cover'>
+          {/* <Menu>
             <MenuButton
               as={Button}
               rounded="full"
@@ -83,7 +84,8 @@ const Navbar = ({ activePanel, setActivePanel }) => {
             <MenuList>
               <MenuItem onClick={handleLogout}>Logout</MenuItem>
             </MenuList>
-          </Menu>
+          </Menu> */}
+          <Notifications />
         </Flex>
       </Flex>
 

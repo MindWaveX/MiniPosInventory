@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Button, Heading, Text, Flex, VStack, Spacer, Badge, useBreakpointValue } from '@chakra-ui/react';
+import { Box, Button, Heading, Text, Flex, VStack, Spacer, Badge, useBreakpointValue, IconButton, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, List, ListItem } from '@chakra-ui/react';
 import { useAuth } from '../contexts/AuthContext';
 import DashboardPanel from './DashboardPanel';
 import ProductsPanel from './ProductsPanel';
@@ -9,8 +9,10 @@ import Navbar from '../components/Navbar';
 import CustomersPanel from './CustomersPanel';
 import SalesPanel from './SalesPanel';
 import ReportsPanel from './ReportsPanel';
-import { doc, getDoc } from 'firebase/firestore';
+import Notifications from '../components/Notifications';
+import { doc, getDoc, collection, query, orderBy, limit, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { BsBell } from 'react-icons/bs';
 
 const Sidenav = ({ activePanel, setActivePanel, onLogout, userRole, isAdmin, managerCanViewReports }) => (
   <Flex
@@ -23,9 +25,13 @@ const Sidenav = ({ activePanel, setActivePanel, onLogout, userRole, isAdmin, man
     p={6}
   >
     <VStack align="stretch" spacing={4} w="100%">
-      <Text fontWeight="bold" w='100%' textAlign="center" fontSize="xl" color="teal.600" mb={8} pl={2}>
+      <Text fontWeight="bold" w='100%' textAlign="center" fontSize="xl" color="teal.600" mb={2} pl={2}>
         Inventory
       </Text>
+      <Box w='100%' bg='' style={{ display: 'flex', direction: 'row', alignItems: 'center', justifyContent: 'center'}}>
+        {/* <Text fontSize="md" fontWeight={700} color="teal.600">Notifications</Text> */}
+        <Notifications />
+      </Box>
       <Button
         isActive={activePanel === 'dashboard'}
         w="100%"
@@ -111,7 +117,7 @@ const Sidenav = ({ activePanel, setActivePanel, onLogout, userRole, isAdmin, man
       )}
     </VStack>
     <Spacer />
-    <VStack spacing={2} mb={4}>
+    {/* <VStack spacing={2} mt={4}>
       <Badge 
         colorScheme={userRole === 'admin' ? 'red' : 'blue'}
         variant="subtle"
@@ -119,7 +125,7 @@ const Sidenav = ({ activePanel, setActivePanel, onLogout, userRole, isAdmin, man
       >
         {userRole || 'manager'}
       </Badge>
-    </VStack>
+    </VStack> */}
     <Button w="100%" mt={8} onClick={onLogout}>
       Logout
     </Button>
@@ -131,6 +137,9 @@ const DashboardPage = () => {
   const [activePanel, setActivePanel] = useState('dashboard');
   const isMobile = useBreakpointValue({ base: true, md: false });
   const [managerCanViewReports, setManagerCanViewReports] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
 
   React.useEffect(() => {
     const fetchSettings = async () => {
@@ -146,6 +155,29 @@ const DashboardPage = () => {
     };
     fetchSettings();
   }, []);
+
+  // Listen for notifications in Firestore
+  React.useEffect(() => {
+    const q = query(collection(db, 'notifications'), orderBy('timestamp', 'desc'), limit(20));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setNotifications(notifs);
+      setUnreadCount(notifs.filter(n => !n.read).length);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Mark all as read when modal is opened
+  const handleNotifOpen = async () => {
+    setIsNotifOpen(true);
+    // Mark all unread notifications as read in Firestore
+    const unread = notifications.filter(n => !n.read);
+    for (const notif of unread) {
+      await updateDoc(doc(db, 'notifications', notif.id), { read: true });
+    }
+  };
+
+  const handleNotifClose = () => setIsNotifOpen(false);
 
   // Handle logout
   const handleLogout = async () => {

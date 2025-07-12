@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Box, Heading, Table, Thead, Tbody, Tr, Th, Td, Spinner, Button, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, FormControl, FormLabel, Input, Select, VStack, HStack, Text, IconButton, useToast, useDisclosure, Menu, MenuButton, MenuList, MenuItem, Icon, useBreakpointValue, List, ListItem } from '@chakra-ui/react';
 import { AddIcon, CloseIcon } from '@chakra-ui/icons';
-import { collection, getDocs, orderBy, query, limit, startAfter, getCountFromServer, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, orderBy, query, limit, startAfter, getCountFromServer, addDoc, deleteDoc, doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import Pagination from '../components/Pagination';
 import { BsThreeDotsVertical } from 'react-icons/bs';
+import { sendLowStockEmail } from '../utils/emailService';
 
 const SalesPanel = () => {
   const { isAdmin, isManager } = useAuth();
@@ -58,6 +59,8 @@ const SalesPanel = () => {
   useEffect(() => {
     generateInvoiceNumber();
   }, [form.date]);
+
+
 
   // Click-outside handler for customer dropdown
   useEffect(() => {
@@ -289,6 +292,15 @@ const SalesPanel = () => {
     return items.reduce((sum, item) => sum + (item.total || 0), 0);
   };
 
+  // Utility to add a notification to Firestore
+  const addNotification = async (message) => {
+    await addDoc(collection(db, 'notifications'), {
+      message,
+      timestamp: serverTimestamp(),
+      read: false
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.invoiceNo || !form.date || !form.customerId || items.length === 0) {
@@ -342,6 +354,24 @@ const SalesPanel = () => {
         const newQuantity = (inventoryItem.quantity || 0) - (parseFloat(item.quantity) || 0);
         try {
           await updateDoc(doc(db, 'inventory', inventoryItem.id), { quantity: newQuantity });
+          // If new quantity is below the product's alert limit, add a notification to Firestore and send email
+          const productAlertLimit = product.alert_limit || 5;
+          if (newQuantity < productAlertLimit) {
+            await addNotification(`Low stock alert: ${product.name} (SKU: ${product.sku}) now has only ${newQuantity} left (alert limit: ${productAlertLimit}).`);
+            
+            // Send email notification to admin
+            try {
+              await sendLowStockEmail(
+                product.name,
+                product.sku,
+                newQuantity,
+                productAlertLimit
+              );
+            } catch (emailError) {
+              console.error('Failed to send email notification:', emailError);
+              // Don't fail the entire operation if email fails
+            }
+          }
         } catch (err) {
           toast({
             title: 'Inventory Update Error',
@@ -447,7 +477,7 @@ const SalesPanel = () => {
                 <Th>Date</Th>
                 <Th>Customer Name</Th>
                 { !isMobile && <Th>Total</Th>}
-                <Th textAlign="right">Menu</Th>
+                <Th></Th>
               </Tr>
             </Thead>
             <Tbody>

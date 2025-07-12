@@ -192,7 +192,7 @@ const AdminPanel = () => {
               <Tr>
                 <Th>User ID</Th>
                 <Th>Role</Th>
-                <Th>Actions</Th>
+                <Th></Th>
               </Tr>
             </Thead>
             <Tbody>

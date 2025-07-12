@@ -55,7 +55,7 @@ const ProductsPanel = () => {
   
   // Edit modal state
   const [editingProduct, setEditingProduct] = useState(null);
-  const [editForm, setEditForm] = useState({ sku: '', name: '', price: '', description: '' });
+  const [editForm, setEditForm] = useState({ sku: '', name: '', price: '', description: '', alert_limit: '' });
   const [updating, setUpdating] = useState(false);
   const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
   
@@ -199,7 +199,8 @@ const ProductsPanel = () => {
       sku: product.sku,
       name: product.name,
       price: product.price.toString(),
-      description: product.description || ''
+      description: product.description || '',
+      alert_limit: (product.alert_limit || 5).toString()
     });
     onEditOpen();
   };
@@ -243,6 +244,7 @@ const ProductsPanel = () => {
         sku: editForm.sku,
         name: editForm.name,
         price: parseFloat(editForm.price),
+        alert_limit: parseInt(editForm.alert_limit) || 5,
         ...(isAdmin ? { description: editForm.description } : {})
       });
 
@@ -251,7 +253,7 @@ const ProductsPanel = () => {
       
       onEditClose();
       setEditingProduct(null);
-      setEditForm({ sku: '', name: '', price: '', description: '' });
+      setEditForm({ sku: '', name: '', price: '', description: '', alert_limit: '' });
       
       toast({
         title: 'Product Updated',
@@ -300,7 +302,8 @@ const ProductsPanel = () => {
         sku: form.sku,
         name: form.name,
         price: parseFloat(form.price),
-        description: form.description || ''
+        description: form.description || '',
+        alert_limit: 5 // Default alert limit of 5
       });
       
       // Refresh the data to show the new product
@@ -401,7 +404,7 @@ const ProductsPanel = () => {
               onChange={handlePriceChange}
               min={0}
               clampValueOnBlur
-              width="28%"
+              width="40%"
             >
               <NumberInputField name="price" placeholder="Price" />
             </NumberInput>
@@ -425,7 +428,7 @@ const ProductsPanel = () => {
                 <Th>Product Name</Th>
                 { isMobile ? '' : <Th>Description</Th>}
                 <Th>Price</Th>
-                {isAdmin && <Th textAlign="right">Actions</Th>}
+                {isAdmin && <Th></Th>}
               </Tr>
             </Thead>
             <Tbody>
@@ -515,6 +518,18 @@ const ProductsPanel = () => {
                   clampValueOnBlur
                 >
                   <NumberInputField placeholder="Enter price" />
+                </NumberInput>
+              </FormControl>
+              
+              <FormControl id="edit-alert-limit" mb={4} isRequired>
+                <FormLabel>Alert Limit</FormLabel>
+                <NumberInput
+                  value={editForm.alert_limit}
+                  onChange={(value) => setEditForm(prev => ({ ...prev, alert_limit: value }))}
+                  min={1}
+                  clampValueOnBlur
+                >
+                  <NumberInputField placeholder="Enter alert limit" />
                 </NumberInput>
               </FormControl>
 

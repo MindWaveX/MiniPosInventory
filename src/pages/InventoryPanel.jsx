@@ -37,10 +37,20 @@ import {
   NumberInputStepper
 } from '@chakra-ui/react';
 import { BsThreeDotsVertical } from 'react-icons/bs';
-import { collection, getDocs, doc, setDoc, limit, startAfter, orderBy, getCountFromServer, query, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, limit, startAfter, orderBy, getCountFromServer, query, updateDoc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import Pagination from '../components/Pagination';
+import { sendLowStockEmail } from '../utils/emailService';
+
+// Utility to add a notification to Firestore
+const addNotification = async (message) => {
+  await addDoc(collection(db, 'notifications'), {
+    message,
+    timestamp: serverTimestamp(),
+    read: false
+  });
+};
 
 const InventoryPanel = () => {
   const [products, setProducts] = useState([]);
@@ -60,6 +70,12 @@ const InventoryPanel = () => {
   const [updatingQuantity, setUpdatingQuantity] = useState(false);
   const { isOpen: isQuantityOpen, onOpen: onQuantityOpen, onClose: onQuantityClose } = useDisclosure();
   
+  // Alert limit edit modal state
+  const [editingAlertLimitProduct, setEditingAlertLimitProduct] = useState(null);
+  const [alertLimitForm, setAlertLimitForm] = useState({ alert_limit: '' });
+  const [updatingAlertLimit, setUpdatingAlertLimit] = useState(false);
+  const { isOpen: isAlertLimitOpen, onOpen: onAlertLimitOpen, onClose: onAlertLimitClose } = useDisclosure();
+  
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
@@ -72,6 +88,7 @@ const InventoryPanel = () => {
   const tableFontSize = useBreakpointValue({ base: 'xs', md: 'sm' });
   const [managerCanEdit, setManagerCanEdit] = useState(true);
   const [managerCanEditDescription, setManagerCanEditDescription] = useState(false);
+  const [managerCanEditAlertLimit, setManagerCanEditAlertLimit] = useState(false);
   const isMobile = useBreakpointValue({ base: true, md: false });
 
   // Calculate total pages
@@ -117,6 +134,24 @@ const InventoryPanel = () => {
     };
     fetchManagerCanEditDescription();
   }, []);
+
+  useEffect(() => {
+    // Fetch managerCanEditAlertLimit setting
+    const fetchManagerCanEditAlertLimit = async () => {
+      try {
+        const docRef = doc(db, 'settings', 'global');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setManagerCanEditAlertLimit(docSnap.data().managerCanEditAlertLimit ?? false);
+        }
+      } catch (err) {
+        setManagerCanEditAlertLimit(false);
+      }
+    };
+    fetchManagerCanEditAlertLimit();
+  }, []);
+
+
 
   const fetchTotalCount = async () => {
     try {
@@ -228,6 +263,15 @@ const InventoryPanel = () => {
     onQuantityOpen();
   };
 
+  // Alert limit edit modal handlers
+  const handleAlertLimitEditClick = (product) => {
+    setEditingAlertLimitProduct(product);
+    setAlertLimitForm({
+      alert_limit: (product.alert_limit || 5).toString()
+    });
+    onAlertLimitOpen();
+  };
+
   const handleQuantityChange = (value) => {
     const newQuantity = parseInt(value) || 0;
     const currentQuantity = editingQuantityProduct?.quantity || 0;
@@ -272,6 +316,25 @@ const InventoryPanel = () => {
         quantity: newQuantity
       }, { merge: true });
 
+      // If new quantity is below the product's alert limit, add a notification to Firestore and send email
+      const productAlertLimit = editingQuantityProduct.alert_limit || 5;
+      if (newQuantity < productAlertLimit) {
+        await addNotification(`Low stock alert: ${editingQuantityProduct.name} (SKU: ${editingQuantityProduct.sku}) now has only ${newQuantity} left (alert limit: ${productAlertLimit}).`);
+        
+        // Send email notification to admin
+        try {
+          await sendLowStockEmail(
+            editingQuantityProduct.name,
+            editingQuantityProduct.sku,
+            newQuantity,
+            productAlertLimit
+          );
+        } catch (emailError) {
+          console.error('Failed to send email notification:', emailError);
+          // Don't fail the entire operation if email fails
+        }
+      }
+
       // Refresh the data
       await fetchProductsAndInventory();
       
@@ -298,6 +361,58 @@ const InventoryPanel = () => {
     }
     
     setUpdatingQuantity(false);
+  };
+
+  const handleAlertLimitSubmit = async (e) => {
+    e.preventDefault();
+    if (!alertLimitForm.alert_limit) return;
+    
+    const newAlertLimit = parseInt(alertLimitForm.alert_limit) || 5;
+    
+    if (newAlertLimit < 1) {
+      toast({
+        title: 'Invalid Alert Limit',
+        description: 'Alert limit must be at least 1.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
+    
+    setUpdatingAlertLimit(true);
+    
+    try {
+      // Update the product's alert limit
+      await updateDoc(doc(db, 'products', editingAlertLimitProduct.id), {
+        alert_limit: newAlertLimit
+      });
+
+      // Refresh the data
+      await fetchProductsAndInventory();
+      
+      onAlertLimitClose();
+      setEditingAlertLimitProduct(null);
+      setAlertLimitForm({ alert_limit: '' });
+      
+      toast({
+        title: 'Alert Limit Updated',
+        description: `Alert limit for ${editingAlertLimitProduct.name} has been updated to ${newAlertLimit}`,
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: 'Error updating alert limit: ' + err.message,
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+    
+    setUpdatingAlertLimit(false);
   };
 
   const handleIncrementSubmit = async (e) => {
@@ -450,14 +565,15 @@ const InventoryPanel = () => {
             <Spinner />
           </Box>
         ) : (
-          <Table variant="striped" size="sm">
+          <Table variant="" size="sm">
             <Thead>
               <Tr>
                 <Th>SKU</Th>
                 <Th>Product Name</Th>
                 { isMobile ? '' : <Th>Description</Th>}
-                <Th textAlign="right">Quantity</Th>
-                {(isAdmin || (isManager && managerCanEdit)) && <Th textAlign="right">Actions</Th>}
+                <Th textAlign="">Quantity</Th>
+                <Th textAlign="">Alert</Th>
+                {(isAdmin || (isManager && managerCanEdit)) && <Th></Th>}
               </Tr>
             </Thead>
             <Tbody>
@@ -465,10 +581,11 @@ const InventoryPanel = () => {
                 <Tr key={product.id}>
                   <Td>{product.sku}</Td>
                   <Td>{product.name}</Td>
-                  <Td>{product.description}</Td>
-                  <Td textAlign="right">{product.quantity}</Td>
-                  {(isAdmin || (isManager && managerCanEdit)) && (
-                    <Td textAlign="right">
+                  { isMobile ? '' : <Td>{product.description}</Td>}
+                  <Td textAlign="" bg={ (product.quantity < product.alert_limit) ? 'red.100' : '' }>{product.quantity}</Td>
+                  <Td textAlign="">{product.alert_limit}</Td>
+                  {(isAdmin || (ier && managerCanEdit)) && (
+                    <Td textAlign="">
                       <Menu>
                         <MenuButton>
                           <Icon boxSize={4} as={BsThreeDotsVertical} cursor="pointer" />
@@ -480,6 +597,14 @@ const InventoryPanel = () => {
                           >
                             Edit Quantity
                           </MenuItem>
+                          {(isAdmin || (isManager && managerCanEditAlertLimit)) && (
+                            <MenuItem 
+                              borderRadius="none"
+                              onClick={() => handleAlertLimitEditClick(product)}
+                            >
+                              Set Alert Limit
+                            </MenuItem>
+                          )}
                           {isAdmin && (
                             <MenuItem 
                               borderRadius="none"
@@ -679,6 +804,51 @@ const InventoryPanel = () => {
                 isLoading={updatingProduct}
               >
                 Update Product
+              </Button>
+            </ModalFooter>
+          </form>
+        </ModalContent>
+      </Modal>
+
+      {/* Edit Alert Limit Modal */}
+      <Modal isOpen={isAlertLimitOpen} onClose={onAlertLimitClose} isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Edit Alert Limit</ModalHeader>
+          <ModalCloseButton />
+          <form onSubmit={handleAlertLimitSubmit}>
+            <ModalBody>
+              <Text mb={4}>
+                Update alert limit for <strong>{editingAlertLimitProduct?.name}</strong>
+              </Text>
+              
+              <FormControl id="edit-alert-limit" isRequired>
+                <FormLabel>Alert Limit</FormLabel>
+                <NumberInput
+                  value={alertLimitForm.alert_limit}
+                  onChange={(value) => setAlertLimitForm(prev => ({ ...prev, alert_limit: value }))}
+                  min={1}
+                  clampValueOnBlur
+                >
+                  <NumberInputField placeholder="Enter alert limit" />
+                </NumberInput>
+              </FormControl>
+              
+              <Text fontSize="sm" color="gray.600" mt={2}>
+                Alerts will be sent when quantity falls below this number
+              </Text>
+            </ModalBody>
+
+            <ModalFooter>
+              <Button variant="ghost" mr={3} onClick={onAlertLimitClose}>
+                Cancel
+              </Button>
+              <Button 
+                colorScheme="teal" 
+                type="submit"
+                isLoading={updatingAlertLimit}
+              >
+                Update Alert Limit
               </Button>
             </ModalFooter>
           </form>
