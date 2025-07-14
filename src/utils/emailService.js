@@ -1,12 +1,32 @@
 import emailjs from '@emailjs/browser';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 // EmailJS configuration
 const EMAILJS_PUBLIC_KEY = 'xST36LAwY_IrgUVAZ';
 const EMAILJS_SERVICE_ID = 'service_svfm4mp';
-const ADMIN_EMAIL = 'laplace.spacer@gmail.com';
 
 // Initialize EmailJS
 emailjs.init(EMAILJS_PUBLIC_KEY);
+
+/**
+ * Get alert email from settings
+ * @returns {Promise<string>} - Alert email address
+ * Note: Email is stored in Firestore under the field 'alert_email'
+ */
+const getAlertEmail = async () => {
+  try {
+    const docRef = doc(db, 'settings', 'global');
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data().alert_email || 'laplace.spacer@gmail.com'; // Fallback to default
+    }
+    return 'laplace.spacer@gmail.com'; // Default email
+  } catch (error) {
+    console.error('Error fetching alert email:', error);
+    return 'laplace.spacer@gmail.com'; // Default email on error
+  }
+};
 
 /**
  * Test EmailJS configuration
@@ -18,8 +38,10 @@ export const testEmailJS = async () => {
     console.log('Public Key:', EMAILJS_PUBLIC_KEY);
     console.log('Service ID:', EMAILJS_SERVICE_ID);
     
+    const alertEmail = await getAlertEmail();
+    
     const templateParams = {
-      to_email: ADMIN_EMAIL,
+      to_email: alertEmail,
       to_name: 'Admin',
       from_name: 'Test System',
       message: 'This is a test email from the inventory system.',
@@ -58,11 +80,14 @@ export const testEmailJS = async () => {
  */
 export const sendLowStockEmail = async (productName, sku, currentQuantity, alertLimit) => {
   try {
+    // Get alert email from settings
+    const alertEmail = await getAlertEmail();
+    
     // Create a simple message for now - we'll use a basic template
     const message = `Low stock alert: ${productName} (SKU: ${sku}) now has only ${currentQuantity} left (alert limit: ${alertLimit}).`;
     
     const templateParams = {
-      to_email: ADMIN_EMAIL,
+      to_email: alertEmail,
       to_name: 'Admin',
       from_name: 'Inventory System',
       message: message,
@@ -103,8 +128,11 @@ export const sendLowStockEmail = async (productName, sku, currentQuantity, alert
  */
 export const sendNotificationEmail = async (subject, message) => {
   try {
+    // Get alert email from settings
+    const alertEmail = await getAlertEmail();
+    
     const templateParams = {
-      to_email: ADMIN_EMAIL,
+      to_email: alertEmail,
       to_name: 'Admin',
       from_name: 'Inventory System',
       subject: subject,

@@ -162,18 +162,46 @@ const DashboardPage = () => {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setNotifications(notifs);
-      setUnreadCount(notifs.filter(n => !n.read).length);
+      
+      // Calculate unread count based on user role
+      const unread = notifs.filter(n => {
+        if (userRole === 'admin') {
+          return !n.admin_read;
+        } else if (userRole === 'manager') {
+          return !n.manager_read;
+        }
+        return false;
+      });
+      setUnreadCount(unread.length);
     });
     return () => unsubscribe();
-  }, []);
+  }, [userRole]);
 
-  // Mark all as read when modal is opened
+  // Mark notifications as read when modal is opened
   const handleNotifOpen = async () => {
     setIsNotifOpen(true);
-    // Mark all unread notifications as read in Firestore
-    const unread = notifications.filter(n => !n.read);
+    
+    // Mark unread notifications as read based on user role
+    const unread = notifications.filter(n => {
+      if (userRole === 'admin') {
+        return !n.admin_read;
+      } else if (userRole === 'manager') {
+        return !n.manager_read;
+      }
+      return false;
+    });
+    
     for (const notif of unread) {
-      await updateDoc(doc(db, 'notifications', notif.id), { read: true });
+      const updateData = {};
+      if (userRole === 'admin') {
+        updateData.admin_read = true;
+      } else if (userRole === 'manager') {
+        updateData.manager_read = true;
+      }
+      
+      if (Object.keys(updateData).length > 0) {
+        await updateDoc(doc(db, 'notifications', notif.id), updateData);
+      }
     }
   };
 

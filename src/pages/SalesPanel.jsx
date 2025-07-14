@@ -293,13 +293,14 @@ const SalesPanel = () => {
   };
 
   // Utility to add a notification to Firestore
-  const addNotification = async (message) => {
-    await addDoc(collection(db, 'notifications'), {
-      message,
-      timestamp: serverTimestamp(),
-      read: false
-    });
-  };
+const addNotification = async (message) => {
+  await addDoc(collection(db, 'notifications'), {
+    message,
+    timestamp: serverTimestamp(),
+    admin_read: false,
+    manager_read: false
+  });
+};
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -398,6 +399,13 @@ const SalesPanel = () => {
         customerName: ''
       });
       setItems([]);
+      
+      // Clear search fields
+      setCustomerSearch('');
+      setProductSearch([]);
+      setShowCustomerDropdown(false);
+      setShowProductDropdown([]);
+      
       onClose();
       
       // Generate new invoice number for next sale

@@ -3,8 +3,10 @@ import { IconButton, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, 
 import { BsBell } from 'react-icons/bs';
 import { collection, query, orderBy, limit, onSnapshot, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { useAuth } from '../contexts/AuthContext';
 
 const Notifications = () => {
+  const { userRole } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -15,22 +17,60 @@ const Notifications = () => {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setNotifications(notifs);
-      setUnreadCount(notifs.filter(n => !n.read).length);
+      
+      // Calculate unread count based on user role
+      const unread = notifs.filter(n => {
+        if (userRole === 'admin') {
+          return !n.admin_read;
+        } else if (userRole === 'manager') {
+          return !n.manager_read;
+        }
+        return false;
+      });
+      setUnreadCount(unread.length);
     });
     return () => unsubscribe();
-  }, []);
+  }, [userRole]);
 
-  // Mark all as read when modal is opened
+  // Mark notifications as read when modal is opened
   const handleNotifOpen = async () => {
     setIsNotifOpen(true);
-    // Mark all unread notifications as read in Firestore
-    const unread = notifications.filter(n => !n.read);
+    
+    // Mark unread notifications as read based on user role
+    const unread = notifications.filter(n => {
+      if (userRole === 'admin') {
+        return !n.admin_read;
+      } else if (userRole === 'manager') {
+        return !n.manager_read;
+      }
+      return false;
+    });
+    
     for (const notif of unread) {
-      await updateDoc(doc(db, 'notifications', notif.id), { read: true });
+      const updateData = {};
+      if (userRole === 'admin') {
+        updateData.admin_read = true;
+      } else if (userRole === 'manager') {
+        updateData.manager_read = true;
+      }
+      
+      if (Object.keys(updateData).length > 0) {
+        await updateDoc(doc(db, 'notifications', notif.id), updateData);
+      }
     }
   };
 
   const handleNotifClose = () => setIsNotifOpen(false);
+
+  // Helper function to check if notification is read by current user
+  const isNotificationRead = (notification) => {
+    if (userRole === 'admin') {
+      return notification.admin_read || false;
+    } else if (userRole === 'manager') {
+      return notification.manager_read || false;
+    }
+    return false;
+  };
 
   return (
     <>
@@ -66,9 +106,16 @@ const Notifications = () => {
               ) : (
                 <List spacing={3}>
                   {notifications.map((notif) => (
-                    <ListItem key={notif.id} p={2} borderBottom="1px solid #eee">
+                    <ListItem 
+                      key={notif.id} 
+                      p={2} 
+                      borderBottom="1px solid #eee"
+                      bg={isNotificationRead(notif) ? 'transparent' : 'blue.50'}
+                    >
                       <Text fontSize="sm">{notif.message}</Text>
-                      <Text fontSize="xs" color="gray.500">{notif.timestamp && new Date(notif.timestamp.seconds * 1000).toLocaleString()}</Text>
+                      <Text fontSize="xs" color="gray.500">
+                        {notif.timestamp && new Date(notif.timestamp.seconds * 1000).toLocaleString()}
+                      </Text>
                     </ListItem>
                   ))}
                 </List>

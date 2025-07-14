@@ -48,7 +48,8 @@ const addNotification = async (message) => {
   await addDoc(collection(db, 'notifications'), {
     message,
     timestamp: serverTimestamp(),
-    read: false
+    admin_read: false,
+    manager_read: false
   });
 };
 
@@ -565,7 +566,7 @@ const InventoryPanel = () => {
             <Spinner />
           </Box>
         ) : (
-          <Table variant="" size="sm">
+          <Table variant="striped" size="sm">
             <Thead>
               <Tr>
                 <Th>SKU</Th>
@@ -573,7 +574,7 @@ const InventoryPanel = () => {
                 { isMobile ? '' : <Th>Description</Th>}
                 <Th textAlign="">Quantity</Th>
                 <Th textAlign="">Alert</Th>
-                {(isAdmin || (isManager && managerCanEdit)) && <Th></Th>}
+                {(isAdmin || (isManager && managerCanEdit)) ? <Th>Actions</Th> : <Th></Th>}
               </Tr>
             </Thead>
             <Tbody>
@@ -582,9 +583,9 @@ const InventoryPanel = () => {
                   <Td>{product.sku}</Td>
                   <Td>{product.name}</Td>
                   { isMobile ? '' : <Td>{product.description}</Td>}
-                  <Td textAlign="" bg={ (product.quantity < product.alert_limit) ? 'red.100' : '' }>{product.quantity}</Td>
+                  <Td textAlign="" textColor={ (product.quantity < product.alert_limit) ? 'red' : '' }>{product.quantity}</Td>
                   <Td textAlign="">{product.alert_limit}</Td>
-                  {(isAdmin || (ier && managerCanEdit)) && (
+                  {(isAdmin || (isManager && managerCanEdit)) ? (
                     <Td textAlign="">
                       <Menu>
                         <MenuButton>
@@ -616,6 +617,8 @@ const InventoryPanel = () => {
                         </MenuList>
                       </Menu>
                     </Td>
+                  ) : (
+                    <Td textAlign=""></Td>
                   )}
                 </Tr>
               ))}

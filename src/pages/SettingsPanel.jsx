@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Heading, Switch, FormControl, FormLabel, Spinner, useToast, VStack, Input, Button, HStack, Text } from '@chakra-ui/react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { Box, Heading, Switch, FormControl, FormLabel, Spinner, SimpleGrid, useToast, VStack, Input, Button, HStack, Text } from '@chakra-ui/react';
+import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { testEmailJS } from '../utils/emailService';
@@ -13,8 +13,14 @@ const SettingsPanel = () => {
   const [managerCanEditDescription, setManagerCanEditDescription] = useState(false);
   const [managerCanViewReports, setManagerCanViewReports] = useState(false);
   const [managerCanEditAlertLimit, setManagerCanEditAlertLimit] = useState(false);
+  const [alertEmail, setAlertEmail] = useState(''); // New state for alert email
   const [loading, setLoading] = useState(true);
   const [testingEmail, setTestingEmail] = useState(false);
+  const [savingEmail, setSavingEmail] = useState(false); // New state for saving email
+  const [notificationsDate, setNotificationsDate] = useState(''); // Date for deleting old notifications
+  const [salesDate, setSalesDate] = useState(''); // Date for deleting old sales
+  const [deletingOldNotifications, setDeletingOldNotifications] = useState(false);
+  const [deletingOldSales, setDeletingOldSales] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
@@ -28,6 +34,7 @@ const SettingsPanel = () => {
           setManagerCanEditDescription(docSnap.data().managerCanEditDescription ?? false);
           setManagerCanViewReports(docSnap.data().managerCanViewReports ?? false);
           setManagerCanEditAlertLimit(docSnap.data().managerCanEditAlertLimit ?? false);
+          setAlertEmail(docSnap.data().alert_email ?? ''); // Load alert email from settings
         }
       } catch (err) {
         toast({
@@ -143,6 +150,29 @@ const SettingsPanel = () => {
     setLoading(false);
   };
 
+  const handleAlertEmailSave = async () => {
+    setSavingEmail(true);
+    try {
+      await setDoc(doc(db, 'settings', SETTINGS_DOC_ID), { alert_email: alertEmail }, { merge: true });
+      toast({
+        title: 'Email Updated',
+        description: 'Alert email has been saved successfully.',
+        status: 'success',
+        duration: 2000,
+        isClosable: true,
+      });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: 'Failed to save alert email',
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    }
+    setSavingEmail(false);
+  };
+
   const handleTestEmail = async () => {
     setTestingEmail(true);
     try {
@@ -166,12 +196,130 @@ const SettingsPanel = () => {
     setTestingEmail(false);
   };
 
+  // Function to delete notifications older than specified date
+  const handleDeleteOldNotifications = async () => {
+    if (!notificationsDate) {
+      toast({
+        title: 'Date Required',
+        description: 'Please select a date before deleting old notifications.',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    setDeletingOldNotifications(true);
+    try {
+      const selectedDate = new Date(notificationsDate);
+      const timestamp = new Date(selectedDate.getTime() - (selectedDate.getTimezoneOffset() * 60000));
+      
+      // Get notifications older than the specified date
+      const notificationsRef = collection(db, 'notifications');
+      const q = query(notificationsRef, where('timestamp', '<', timestamp));
+      const snapshot = await getDocs(q);
+      
+      if (snapshot.empty) {
+        toast({
+          title: 'No Notifications Found',
+          description: 'No notifications found older than the selected date.',
+          status: 'info',
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      // Delete each notification document
+      const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deletePromises);
+      
+      toast({
+        title: 'Notifications Deleted',
+        description: `Successfully deleted ${snapshot.docs.length} notifications older than ${notificationsDate}.`,
+        status: 'success',
+        duration: 4000,
+        isClosable: true,
+      });
+      
+      setNotificationsDate(''); // Reset the date input
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: `Failed to delete old notifications: ${error.message}`,
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    }
+    setDeletingOldNotifications(false);
+  };
+
+  // Function to delete sales older than specified date
+  const handleDeleteOldSales = async () => {
+    if (!salesDate) {
+      toast({
+        title: 'Date Required',
+        description: 'Please select a date before deleting old sales.',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    setDeletingOldSales(true);
+    try {
+      const selectedDate = new Date(salesDate);
+      const timestamp = new Date(selectedDate.getTime() - (selectedDate.getTimezoneOffset() * 60000));
+      
+      // Get sales older than the specified date
+      const salesRef = collection(db, 'sales');
+      const q = query(salesRef, where('timestamp', '<', timestamp));
+      const snapshot = await getDocs(q);
+      
+      if (snapshot.empty) {
+        toast({
+          title: 'No Sales Found',
+          description: 'No sales found older than the selected date.',
+          status: 'info',
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      // Delete each sale document
+      const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deletePromises);
+      
+      toast({
+        title: 'Sales Deleted',
+        description: `Successfully deleted ${snapshot.docs.length} sales older than ${salesDate}.`,
+        status: 'success',
+        duration: 4000,
+        isClosable: true,
+      });
+      
+      setSalesDate(''); // Reset the date input
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: `Failed to delete old sales: ${error.message}`,
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    }
+    setDeletingOldSales(false);
+  };
+
   if (!isAdmin) return null;
 
   return (
-    <Box minW="calc(100vw - 220px)" minH="100vh" p={2} textAlign="center" bg="white">
-      <Heading mb={6}>Settings</Heading>
-      <VStack align="stretch" spacing={6} mt={16}>
+    <Box minW="calc(100vw - 220px)" minH="100vh" px={6} py={2} textAlign="center" bg="white" overflowY='auto'>
+      <Heading>Settings</Heading>
+      <SimpleGrid pt={16} columns={{base: 1, sm: 2}} spacing={20}>
         <FormControl display="flex" alignItems="center" justifyContent="center">
           <FormLabel htmlFor="manager-edit-toggle" mb="0">
             Allow managers to edit inventory
@@ -217,7 +365,32 @@ const SettingsPanel = () => {
           />
         </FormControl>
         
-        <Box borderWidth={1} borderRadius="md" p={4} bg="gray.50">
+        {/* Alert Email Configuration */}
+        <Box borderWidth={1} borderRadius="sm">
+          <Text fontWeight="bold" mb={2}>Alert Email Configuration</Text>
+          <Text fontSize="sm" color="gray.600" mb={3}>
+            Configure the email address to receive low stock alerts and notifications
+          </Text>
+          <HStack spacing={3} justify="center">
+            <Input
+              type="email"
+              placeholder="Enter email address for alerts"
+              value={alertEmail}
+              onChange={(e) => setAlertEmail(e.target.value)}
+              maxW="300px"
+            />
+            <Button
+              colorScheme="blue"
+              size="sm"
+              onClick={handleAlertEmailSave}
+              isLoading={savingEmail}
+            >
+              Save
+            </Button>
+          </HStack>
+        </Box>
+        
+        <Box borderWidth={1} borderRadius="sm">
           <Text fontWeight="bold" mb={2}>Email Notifications</Text>
           <Text fontSize="sm" color="gray.600" mb={3}>
             Test the email notification system
@@ -228,10 +401,58 @@ const SettingsPanel = () => {
             onClick={handleTestEmail}
             isLoading={testingEmail}
           >
-            Test Email Notification
+            Test Notification
           </Button>
         </Box>
-      </VStack>
+
+        {/* Delete Old Notifications Section */}
+        <Box borderWidth={1} borderRadius="sm">
+          <Text fontWeight="bold" mb={2}>Delete Old Notifications</Text>
+          <Text fontSize="sm" color="gray.600" mb={3}>
+            Delete notifications older than the selected date. This action cannot be undone.
+          </Text>
+          <HStack spacing={3} justify="center">
+            <Input
+              type="date"
+              value={notificationsDate}
+              onChange={(e) => setNotificationsDate(e.target.value)}
+              maxW="200px"
+            />
+            <Button
+              colorScheme="red"
+              size="sm"
+              onClick={handleDeleteOldNotifications}
+              isLoading={deletingOldNotifications}
+            >
+              Delete
+            </Button>
+          </HStack>
+        </Box>
+
+        {/* Delete Old Sales Section */}
+        <Box borderWidth={1} borderRadius="sm">
+          <Text fontWeight="bold" mb={2}>Delete Old Sales</Text>
+          <Text fontSize="sm" color="gray.600" mb={3}>
+            Delete sales records older than the selected date. This action cannot be undone.
+          </Text>
+          <HStack spacing={3} justify="center">
+            <Input
+              type="date"
+              value={salesDate}
+              onChange={(e) => setSalesDate(e.target.value)}
+              maxW="200px"
+            />
+            <Button
+              colorScheme="red"
+              size="sm"
+              onClick={handleDeleteOldSales}
+              isLoading={deletingOldSales}
+            >
+              Delete
+            </Button>
+          </HStack>
+        </Box>
+      </SimpleGrid>
     </Box>
   );
 };
