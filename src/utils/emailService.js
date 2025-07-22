@@ -19,12 +19,16 @@ const getAlertEmail = async () => {
     const docRef = doc(db, 'settings', 'global');
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
-      return docSnap.data().alert_email || 'laplace.spacer@gmail.com'; // Fallback to default
+      const email = docSnap.data().alert_email || 'bilalopticalglasses@gmail.com'; // fallback email updated
+      console.log('[DEBUG] getAlertEmail: fetched from Firestore:', email);
+      return email;
     }
-    return 'laplace.spacer@gmail.com'; // Default email
+    console.log('[DEBUG] getAlertEmail: using default email bilalopticalglasses@gmail.com');
+    return 'bilalopticalglasses@gmail.com'; // Default email
   } catch (error) {
     console.error('Error fetching alert email:', error);
-    return 'laplace.spacer@gmail.com'; // Default email on error
+    console.log('[DEBUG] getAlertEmail: using default email bilalopticalglasses@gmail.com due to error');
+    return 'bilalopticalglasses@gmail.com'; // Default email on error
   }
 };
 
@@ -82,6 +86,7 @@ export const sendLowStockEmail = async (productName, sku, currentQuantity, alert
   try {
     // Get alert email from settings
     const alertEmail = await getAlertEmail();
+    console.log('[DEBUG] sendLowStockEmail: using alertEmail:', alertEmail);
     
     // Create a simple message for now - we'll use a basic template
     const message = `Low stock alert: ${productName} (SKU: ${sku}) now has only ${currentQuantity} left (alert limit: ${alertLimit}).`;
@@ -130,6 +135,7 @@ export const sendNotificationEmail = async (subject, message) => {
   try {
     // Get alert email from settings
     const alertEmail = await getAlertEmail();
+    console.log('[DEBUG] sendNotificationEmail: using alertEmail:', alertEmail);
     
     const templateParams = {
       to_email: alertEmail,

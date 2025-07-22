@@ -73,6 +73,7 @@ const ProductsPanel = () => {
   const tableFontSize = useBreakpointValue({ base: 'xs', md: 'sm' });
   const isMobile = useBreakpointValue({ base: true, md: false });
   const [managerCanEditDescription, setManagerCanEditDescription] = useState(false);
+  const [skuSearch, setSkuSearch] = useState(""); // State for SKU search
 
   // Calculate total pages
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -371,57 +372,81 @@ const ProductsPanel = () => {
     onClose();
   };
 
+  // Filter items by SKU search
+  const filteredItems = skuSearch
+    ? items.filter((item) => item.sku.toLowerCase().includes(skuSearch.toLowerCase()))
+    : items;
+
   return (
     <Box minW={isMobile ? "100vw" : "calc(100vw - 220px)"} minH={isMobile ? '' : "100vh"} p={2} textAlign="center" bg="white">
       <Heading mb={4}>Products</Heading>
       <Text mb={8}>This is the products panel. Add your product features here.</Text>
       
       {isAdmin && (
-        <Box as="form" w='' onSubmit={handleAdd} mt={6} mb={4} p={2} borderWidth={1} borderRadius="md" bg="gray.50">
-          <HStack spacing={3} justifyContent="space-between">
-            <Input
-              name="sku"
-              placeholder="SKU"
-              value={form.sku}
-              onChange={handleChange}
-              required
-              size="sm"
-              width="19%"
-            />
-            <Input
-              name="name"
-              placeholder="Product Name"
-              value={form.name}
-              onChange={handleChange}
-              required
-              size="sm"
-              width="30%"
-            />
-
-            <NumberInput
-              size="sm"
-              value={form.price}
-              onChange={handlePriceChange}
-              min={0}
-              clampValueOnBlur
-              width="40%"
-            >
-              <NumberInputField name="price" placeholder="Price" />
-            </NumberInput>
-            <Button w='20%' size="sm" colorScheme="teal" type="submit" isLoading={loading}>
-              Add
-            </Button>
-          </HStack>
-        </Box>
+        <>
+          {/* Add Product Form */}
+          <Box as="form" w='' onSubmit={handleAdd} mt={2} mb={2} p={2} borderWidth={1} borderRadius="md" bg="gray.50">
+            <HStack spacing={3} justifyContent="space-between">
+              <Input
+                  name="skuSearch"
+                  placeholder="Search SKU"
+                  value={skuSearch}
+                  onChange={e => setSkuSearch(e.target.value)}
+                  size="sm"
+                  width="15%"
+                />
+              <Input
+                name="sku"
+                placeholder="SKU"
+                value={form.sku}
+                onChange={handleChange}
+                required
+                size="sm"
+                width="10%"
+              />
+              <Input
+                name="name"
+                placeholder="Name"
+                value={form.name}
+                onChange={handleChange}
+                required
+                size="sm"
+                width="20%"
+              />
+              {/* Description field added below */}
+              <Input
+                name="description"
+                placeholder="Desc."
+                value={form.description}
+                onChange={handleChange}
+                size="sm"
+                width="20%"
+              />
+              <NumberInput
+                size="sm"
+                value={form.price}
+                onChange={handlePriceChange}
+                min={0}
+                clampValueOnBlur
+                width="20%"
+              >
+                <NumberInputField name="price" placeholder="Price" />
+              </NumberInput>
+              <Button w='10%' size="sm" colorScheme="teal" type="submit" isLoading={loading}>
+                Add
+              </Button>
+            </HStack>
+          </Box>
+        </>
       )}
       
-      <Box maxW="100%" height="300px" overflow="auto" p={2} borderWidth={1} borderRadius="md">
+      <Box maxW="100%" height="25rem" overflow="auto" p={2} borderWidth={1} borderRadius="md">
         {fetching ? (
           <Box display="flex" justifyContent="center" alignItems="center" height="300px">
             <Spinner />
           </Box>
         ) : (
-          <Table variant="striped" size="sm" fontSize={tableFontSize}>
+          <Table variant="striped" overflow='auto' size="sm" fontSize={tableFontSize}>
             <Thead>
               <Tr>
                 <Th>SKU</Th>
@@ -432,7 +457,8 @@ const ProductsPanel = () => {
               </Tr>
             </Thead>
             <Tbody>
-              {items.map((item) => (
+              {/* Use filteredItems instead of items for display */}
+              {filteredItems.map((item) => (
                 <Tr key={item.id}>
                   <Td>{item.sku}</Td>
                   <Td>{item.name}</Td>

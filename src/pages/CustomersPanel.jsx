@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Box, Heading, Table, Thead, Tbody, Tr, Th, Td, FormControl, Input, Button, useToast, HStack, Spinner, Menu, MenuButton, MenuList, MenuItem, Icon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay, useDisclosure, useBreakpointValue } from '@chakra-ui/react';
+import { Box, Heading, Table, Thead, Tbody, Tr, Th, Td, Divider , FormControl, Input, Button, useToast, HStack, Spinner, Menu, MenuButton, MenuList, MenuItem, Icon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay, useDisclosure, useBreakpointValue, FormLabel, NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper, } from '@chakra-ui/react';
 import { BsThreeDotsVertical } from 'react-icons/bs';
 import { collection, addDoc, getDocs, orderBy, query, limit, startAfter, getCountFromServer, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -9,7 +9,7 @@ import Pagination from '../components/Pagination';
 const CustomersPanel = () => {
   const { isAdmin, isManager } = useAuth();
   const [customers, setCustomers] = useState([]);
-  const [form, setForm] = useState({ name: '', company: '' });
+  const [form, setForm] = useState({ name: '', company: '', credit: 0 });
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -18,7 +18,7 @@ const CustomersPanel = () => {
   const [pageSnapshots, setPageSnapshots] = useState({});
   const [hasNextPage, setHasNextPage] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', company: '' });
+  const [editForm, setEditForm] = useState({ name: '', company: '', credit: 0 });
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState({});
   const [customerToDelete, setCustomerToDelete] = useState(null);
@@ -27,6 +27,15 @@ const CustomersPanel = () => {
   const cancelRef = useRef();
   const toast = useToast();
   const isMobile = useBreakpointValue({ base: true, md: false });
+
+  // Add state to track which credit is being updated and its value
+  const [creditEdits, setCreditEdits] = useState({});
+  const [creditLoading, setCreditLoading] = useState({});
+  // Add state to track the delta input for each customer
+  const [creditDeltaEdits, setCreditDeltaEdits] = useState({});
+
+  // State for search
+  const [searchCustomer, setSearchCustomer] = useState(''); // Search input for customer
 
   const totalPages = Math.ceil(totalItems / itemsPerPage);
 
@@ -65,7 +74,7 @@ const CustomersPanel = () => {
         );
       }
       const snapshot = await getDocs(customersQuery);
-      const customersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const customersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), credit: doc.data().credit ?? 0 }));
       setCustomers(customersList);
       if (snapshot.docs.length > 0) {
         const lastDocSnapshot = snapshot.docs[snapshot.docs.length - 1];
@@ -109,7 +118,7 @@ const CustomersPanel = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    setForm(prev => ({ ...prev, [name]: name === 'credit' ? Number(value) : value }));
   };
 
   const handleAdd = async (e) => {
@@ -119,9 +128,10 @@ const CustomersPanel = () => {
     try {
       await addDoc(collection(db, 'customers'), {
         name: form.name,
-        company: form.company
+        company: form.company,
+        credit: form.credit || 0
       });
-      setForm({ name: '', company: '' });
+      setForm({ name: '', company: '', credit: 0 });
       toast({
         title: 'Customer Added',
         status: 'success',
@@ -146,13 +156,13 @@ const CustomersPanel = () => {
 
   const handleEditClick = (customer) => {
     setEditingCustomer(customer);
-    setEditForm({ name: customer.name, company: customer.company });
+    setEditForm({ name: customer.name, company: customer.company, credit: customer.credit ?? 0 });
     onEditOpen();
   };
 
   const handleEditChange = (e) => {
     const { name, value } = e.target;
-    setEditForm(prev => ({ ...prev, [name]: value }));
+    setEditForm(prev => ({ ...prev, [name]: name === 'credit' ? Number(value) : value }));
   };
 
   const handleEditSubmit = async (e) => {
@@ -162,12 +172,13 @@ const CustomersPanel = () => {
     try {
       await updateDoc(doc(db, 'customers', editingCustomer.id), {
         name: editForm.name,
-        company: editForm.company
+        company: editForm.company,
+        credit: editForm.credit || 0
       });
       await fetchCustomers();
       onEditClose();
       setEditingCustomer(null);
-      setEditForm({ name: '', company: '' });
+      setEditForm({ name: '', company: '', credit: 0 });
       toast({
         title: 'Customer Updated',
         status: 'success',
@@ -219,14 +230,49 @@ const CustomersPanel = () => {
     onClose();
   };
 
+  // Handler for credit input change in the table
+  const handleCreditInputChange = (customerId, valueAsString) => {
+    setCreditEdits(prev => ({ ...prev, [customerId]: valueAsString }));
+  };
+  // Handler for credit input blur or Enter
+  const handleCreditInputSave = async (customer) => {
+    const newCredit = Number(creditEdits[customer.id]);
+    if (isNaN(newCredit) || newCredit === customer.credit) return;
+    setCreditLoading(prev => ({ ...prev, [customer.id]: true }));
+    try {
+      await updateDoc(doc(db, 'customers', customer.id), { credit: newCredit });
+      setCustomers(prev => prev.map(c => c.id === customer.id ? { ...c, credit: newCredit } : c));
+      toast({ title: 'Credit Updated', status: 'success', duration: 1500, isClosable: true });
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to update credit', status: 'error', duration: 3000, isClosable: true });
+    }
+    setCreditLoading(prev => ({ ...prev, [customer.id]: false }));
+  };
+
+  // Filter customers based on searchCustomer
+  const filteredCustomers = customers.filter(customer =>
+    customer.name.toLowerCase().includes(searchCustomer.toLowerCase()) ||
+    customer.company.toLowerCase().includes(searchCustomer.toLowerCase())
+  );
+
   if (!isAdmin && !isManager) return null;
 
   return (
-    <Box minW={isMobile ? "100vw" : "calc(100vw - 220px)"} minH="100vh" p={2} textAlign="center" bg="white">
+    <Box minW={isMobile ? "100vw" : "calc(100vw - 220px)"} minH="100vh" p={isMobile ? 0 : 2} textAlign="center" bg="white">
       <Heading mb={6}>Customers</Heading>
+      {/* Search by customer name or company */}
+    
       {isAdmin && (
-        <Box as="form" onSubmit={handleAdd} mt={6} mb={4} p={2} borderWidth={1} borderRadius="md" bg="gray.50">
+        <Box as="form" maxW={ isMobile ? '100vw' : '100%'} onSubmit={handleAdd} mt={6} mb={4} p={2} borderWidth={1} borderRadius="md" bg="gray.50">
           <HStack spacing={3} justifyContent="space-between" w='100%'>
+            <Input
+              placeholder="Search customer"
+              value={searchCustomer}
+              onChange={e => setSearchCustomer(e.target.value)}
+              width="auto"
+              size="sm"
+            />
+            <Divider borderWidth={0.25} h={6} orientation='vertical' />
             <Input
               name="name"
               placeholder="Customer Name"
@@ -251,25 +297,111 @@ const CustomersPanel = () => {
           </HStack>
         </Box>
       )}
-      <Box w="100%" height="300px" overflow="auto" p={0} borderWidth={1} borderRadius="md" mb={4}>
+      <Box maxW="100vw" height="25rem" p={0} overflowX='auto' borderWidth={1} borderRadius="md" mb={4}>
         {fetching ? (
           <Box display="flex" justifyContent="center" alignItems="center" height="300px">
             <Spinner />
           </Box>
         ) : (
-          <Table variant="striped" size="sm">
+          <Table variant="striped" size="sm" overflow='auto'>
             <Thead>
               <Tr>
                 <Th>Name</Th>
                 <Th>Company</Th>
+                <Th>Rs Credit</Th>
                 {isAdmin && <Th></Th>}
               </Tr>
             </Thead>
             <Tbody>
-              {customers.map((customer) => (
+              {/* Use filtered customers */}
+              {filteredCustomers.map((customer) => (
                 <Tr key={customer.id}>
                   <Td>{customer.name}</Td>
                   <Td>{customer.company}</Td>
+                  <Td>
+                    {isAdmin ? (
+                      <HStack spacing={1} maxW={60}>
+                        {/* Display current credit value (uneditable) */}
+                        <Box minW={16} textAlign="center">{customer.credit}</Box>
+                        {/* Decrement Button */}
+                        <Button
+                          size="xs"
+                          onClick={() => {
+                            const delta = Number(creditDeltaEdits[customer.id]);
+                            if (!isNaN(delta) && delta !== 0) {
+                              const newCredit = customer.credit - delta;
+                              setCreditLoading(prev => ({ ...prev, [customer.id]: true }));
+                              updateDoc(doc(db, 'customers', customer.id), { credit: newCredit })
+                                .then(() => {
+                                  setCustomers(prev => prev.map(c => c.id === customer.id ? { ...c, credit: newCredit } : c));
+                                  toast({ title: 'Credit Updated', status: 'success', duration: 1500, isClosable: true });
+                                })
+                                .catch(() => {
+                                  toast({ title: 'Error', description: 'Failed to update credit', status: 'error', duration: 3000, isClosable: true });
+                                })
+                                .finally(() => {
+                                  setCreditLoading(prev => ({ ...prev, [customer.id]: false }));
+                                });
+                              // Clear the delta input after operation
+                              setCreditDeltaEdits(prev => ({ ...prev, [customer.id]: '' }));
+                            }
+                          }}
+                          isDisabled={creditLoading[customer.id] || !creditDeltaEdits[customer.id] || isNaN(Number(creditDeltaEdits[customer.id]))}
+                        >
+                          -
+                        </Button>
+                        {/* Editable delta input field */}
+                        <NumberInput
+                          size="sm"
+                          value={creditDeltaEdits[customer.id] !== undefined ? creditDeltaEdits[customer.id] : ''}
+                          onChange={(valueAsString) => setCreditDeltaEdits(prev => ({ ...prev, [customer.id]: valueAsString }))}
+                          isDisabled={creditLoading[customer.id]}
+                          maxW={20}
+                        >
+                          <NumberInputField
+                            type='number'
+                            placeholder="0"
+                            onKeyDown={e => { if (e.key === 'Enter') { e.target.blur(); } }}
+                            // Only allow digits (no +, - or other non-numeric chars)
+                            onInput={e => {
+                              const cleaned = e.target.value.replace(/[^\d]/g, '');
+                              e.target.value = cleaned;
+                              setCreditDeltaEdits(prev => ({ ...prev, [customer.id]: cleaned }));
+                            }}
+                          />
+                        </NumberInput>
+                        {/* Increment Button */}
+                        <Button
+                          size="xs"
+                          onClick={() => {
+                            const delta = Number(creditDeltaEdits[customer.id]);
+                            if (!isNaN(delta) && delta !== 0) {
+                              const newCredit = customer.credit + delta;
+                              setCreditLoading(prev => ({ ...prev, [customer.id]: true }));
+                              updateDoc(doc(db, 'customers', customer.id), { credit: newCredit })
+                                .then(() => {
+                                  setCustomers(prev => prev.map(c => c.id === customer.id ? { ...c, credit: newCredit } : c));
+                                  toast({ title: 'Credit Updated', status: 'success', duration: 1500, isClosable: true });
+                                })
+                                .catch(() => {
+                                  toast({ title: 'Error', description: 'Failed to update credit', status: 'error', duration: 3000, isClosable: true });
+                                })
+                                .finally(() => {
+                                  setCreditLoading(prev => ({ ...prev, [customer.id]: false }));
+                                });
+                              // Clear the delta input after operation
+                              setCreditDeltaEdits(prev => ({ ...prev, [customer.id]: '' }));
+                            }
+                          }}
+                          isDisabled={creditLoading[customer.id] || !creditDeltaEdits[customer.id] || isNaN(Number(creditDeltaEdits[customer.id]))}
+                        >
+                          +
+                        </Button>
+                      </HStack>
+                    ) : (
+                      customer.credit
+                    )}
+                  </Td>
                   {isAdmin && (
                     <Td textAlign="right">
                       <Menu>
@@ -312,6 +444,8 @@ const CustomersPanel = () => {
           <form onSubmit={handleEditSubmit}>
             <ModalBody>
               <FormControl id="edit-name" mb={4} isRequired>
+                {/* Label for Name field */}
+                <FormLabel>Name</FormLabel>
                 <Input
                   name="name"
                   value={editForm.name}
@@ -320,12 +454,25 @@ const CustomersPanel = () => {
                 />
               </FormControl>
               <FormControl id="edit-company" mb={4} isRequired>
+                {/* Label for Company field */}
+                <FormLabel>Company</FormLabel>
                 <Input
                   name="company"
                   value={editForm.company}
                   onChange={handleEditChange}
                   placeholder="Enter company name"
                 />
+              </FormControl>
+              <FormControl id="edit-credit" mb={4} isRequired>
+                <FormLabel>Rs Credit</FormLabel>
+                <Input
+                  name="credit"
+                  type="number"
+                  value={editForm.credit}
+                  onChange={handleEditChange}
+                  placeholder="Enter credit amount"
+                />
+                
               </FormControl>
             </ModalBody>
             <ModalFooter>

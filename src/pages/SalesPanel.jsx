@@ -43,6 +43,9 @@ const SalesPanel = () => {
   const customerDropdownRef = useRef(null);
   const productDropdownRefs = useRef([]);
 
+  // State for search
+  const [searchSaleCustomer, setSearchSaleCustomer] = useState(''); // Search input for sales by customer name
+
   const totalPages = Math.ceil(totalItems / itemsPerPage);
 
   useEffect(() => {
@@ -462,17 +465,32 @@ const addNotification = async (message) => {
     setLoading(false);
   };
 
+  // Filter sales based on searchSaleCustomer
+  const filteredSales = sales.filter(sale =>
+    sale.customerName && sale.customerName.toLowerCase().includes(searchSaleCustomer.toLowerCase())
+  );
+
   if (!isAdmin && !isManager) return null;
 
   return (
     <Box minW={isMobile ? "100vw" : "calc(100vw - 220px)"} minH="100vh" p={ isMobile ? 0 : 2} textAlign="center" bg="white">
       <Heading mb={6}>Sales</Heading>
-      {(isAdmin || isManager) && (
-        <Button colorScheme="teal" mb={4} onClick={onOpen} leftIcon={<AddIcon />}>
-          Add New Sale
-        </Button>
-      )}
-      <Box maxW="100%" height="300px" p={0} borderWidth={1} borderRadius="md" mb={4}>
+      {/* Search by customer name for sales records */}
+      <HStack mb={2} spacing={0} px={1} justifyContent="space-between">
+        <Input
+          placeholder="Search customer"
+          value={searchSaleCustomer}
+          onChange={e => setSearchSaleCustomer(e.target.value)}
+          width='auto'
+          size="sm"
+        />
+        {(isAdmin || isManager) && (
+          <Button colorScheme="teal" onClick={onOpen}>
+            New Sale
+          </Button>
+        )}
+      </HStack>
+      <Box maxW="100%" height="25rem" p={0} borderWidth={1} borderRadius="md" mb={4}>
         {fetching ? (
           <Box display="flex" justifyContent="center" alignItems="center" height="300px">
             <Spinner />
@@ -489,7 +507,8 @@ const addNotification = async (message) => {
               </Tr>
             </Thead>
             <Tbody>
-              {sales.map((sale) => (
+              {/* Use filtered sales */}
+              {filteredSales.map((sale) => (
                 <Tr key={sale.id}>
                   <Td>{sale.invoiceNo}</Td>
                   <Td>{sale.date}</Td>
@@ -705,7 +724,8 @@ const addNotification = async (message) => {
                                           setShowProductDropdown(prev => prev.map((show, i) => i === index ? false : show));
                                         }}
                                       >
-                                        {product.name} - Rs {product.price} {product.sku ? `(${product.sku})` : ''}
+                                        {/* Show SKU - Product Name - Product Description */}
+                                        {product.sku} - {product.name} - {product.description}
                                       </ListItem>
                                     ))}
                                 </List>

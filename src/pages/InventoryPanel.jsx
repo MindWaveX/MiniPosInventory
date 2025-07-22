@@ -84,6 +84,10 @@ const InventoryPanel = () => {
   const [pageSnapshots, setPageSnapshots] = useState({}); // Store snapshots for each page
   const [hasNextPage, setHasNextPage] = useState(false);
   
+  // State for search and sort
+  const [searchSKU, setSearchSKU] = useState(''); // Search input for SKU
+  const [sortBySKUAsc, setSortBySKUAsc] = useState(true); // Sort order for SKU
+  
   const { isAdmin, isManager } = useAuth();
   const toast = useToast();
   const tableFontSize = useBreakpointValue({ base: 'xs', md: 'sm' });
@@ -102,6 +106,19 @@ const InventoryPanel = () => {
   useEffect(() => {
     fetchProductsAndInventory();
   }, [currentPage, itemsPerPage]);
+
+  // Filter and sort products based on searchSKU and sortBySKUAsc
+  const filteredProducts = products
+    .filter(product =>
+      product.sku.toLowerCase().includes(searchSKU.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (sortBySKUAsc) {
+        return a.sku.localeCompare(b.sku);
+      } else {
+        return b.sku.localeCompare(a.sku);
+      }
+    });
 
   useEffect(() => {
     // Fetch the managerCanEditInventory setting
@@ -559,30 +576,45 @@ const InventoryPanel = () => {
     <Box minW={isMobile ? "100vw" : "calc(100vw - 220px)"} minH={isMobile ? '' : "100vh"} p={ isMobile ? 0 : 2} textAlign="center" bg="white">
       <Heading mb={4}>Inventory</Heading>
       <Text mb={8}>View and edit quantities for your products.</Text>
-      
-      <Box maxW="100%" height="300px" overflow="auto"  p={ isMobile ? 0 : 2} borderWidth={1} borderRadius="md">
+      {/* Search and Sort Controls */}
+      <HStack mb={2} spacing={0} px={1} justifyContent="space-between">
+        {/* Search by SKU */}
+        <Input
+          placeholder="Search by SKU"
+          value={searchSKU}
+          onChange={e => setSearchSKU(e.target.value)}
+          width='auto'
+          size="sm"
+        />
+        {/* Sort by SKU toggle */}
+        <Button size="sm" width='auto' onClick={() => setSortBySKUAsc(prev => !prev)}>
+          SKU {sortBySKUAsc ? '▲' : '▼'}
+        </Button>
+      </HStack>
+      <Box maxW="100%" h='25rem' overflow="auto"  p={ isMobile ? 0 : 2} borderWidth={1} borderRadius="md">
         {fetching ? (
           <Box display="flex" justifyContent="center" alignItems="center" height="300px">
             <Spinner />
           </Box>
         ) : (
-          <Table variant="striped" size="sm">
+          <Table variant="striped" maxW='100%' size="sm" h='100%' overflow='auto'>
             <Thead>
               <Tr>
                 <Th>SKU</Th>
                 <Th>Product Name</Th>
-                { isMobile ? '' : <Th>Description</Th>}
+                { !isMobile && <Th>Description</Th>}
                 <Th textAlign="">Quantity</Th>
                 <Th textAlign="">Alert</Th>
-                {(isAdmin || (isManager && managerCanEdit)) ? <Th>Actions</Th> : <Th></Th>}
+                {/* Actions header removed as requested */}
               </Tr>
             </Thead>
             <Tbody>
-              {products.map((product) => (
+              {/* Use filtered and sorted products */}
+              {filteredProducts.map((product) => (
                 <Tr key={product.id}>
                   <Td>{product.sku}</Td>
                   <Td>{product.name}</Td>
-                  { isMobile ? '' : <Td>{product.description}</Td>}
+                  { !isMobile && <Td>{product.description}</Td>}
                   <Td textAlign="" textColor={ (product.quantity < product.alert_limit) ? 'red' : '' }>{product.quantity}</Td>
                   <Td textAlign="">{product.alert_limit}</Td>
                   {(isAdmin || (isManager && managerCanEdit)) ? (
