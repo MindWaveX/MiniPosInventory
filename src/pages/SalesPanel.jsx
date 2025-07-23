@@ -476,16 +476,16 @@ const addNotification = async (message) => {
     <Box minW={isMobile ? "100vw" : "calc(100vw - 220px)"} minH="100vh" p={ isMobile ? 0 : 2} textAlign="center" bg="white">
       <Heading mb={6}>Sales</Heading>
       {/* Search by customer name for sales records */}
-      <HStack mb={2} spacing={0} px={1} justifyContent="space-between">
+      <HStack mb={2} spacing={0} p={2} bg='gray.50' justifyContent="space-between">
         <Input
           placeholder="Search customer"
           value={searchSaleCustomer}
           onChange={e => setSearchSaleCustomer(e.target.value)}
-          width='auto'
+          width='80%'
           size="sm"
         />
         {(isAdmin || isManager) && (
-          <Button colorScheme="teal" onClick={onOpen}>
+          <Button w='20%' colorScheme="teal" size='sm' onClick={onOpen}>
             New Sale
           </Button>
         )}

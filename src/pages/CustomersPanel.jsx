@@ -262,17 +262,17 @@ const CustomersPanel = () => {
       <Heading mb={6}>Customers</Heading>
       {/* Search by customer name or company */}
     
-      {isAdmin && (
         <Box as="form" maxW={ isMobile ? '100vw' : '100%'} onSubmit={handleAdd} mt={6} mb={4} p={2} borderWidth={1} borderRadius="md" bg="gray.50">
-          <HStack spacing={3} justifyContent="space-between" w='100%'>
+          <HStack px={2} mb={1}>
             <Input
-              placeholder="Search customer"
+              placeholder="Search Customer"
               value={searchCustomer}
               onChange={e => setSearchCustomer(e.target.value)}
-              width="auto"
+              width="100%"
               size="sm"
             />
-            <Divider borderWidth={0.25} h={6} orientation='vertical' />
+          </HStack>
+          <HStack spacing={3} p={2} justifyContent="space-between" w='100%'>
             <Input
               name="name"
               placeholder="Customer Name"
@@ -296,8 +296,7 @@ const CustomersPanel = () => {
             </Button>
           </HStack>
         </Box>
-      )}
-      <Box maxW="100vw" height="25rem" p={0} overflowX='auto' borderWidth={1} borderRadius="md" mb={4}>
+      <Box maxW="100vw" height="24rem" p={0} overflowX='auto' borderWidth={1} borderRadius="md" mb={4}>
         {fetching ? (
           <Box display="flex" justifyContent="center" alignItems="center" height="300px">
             <Spinner />

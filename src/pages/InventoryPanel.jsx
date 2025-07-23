@@ -85,7 +85,7 @@ const InventoryPanel = () => {
   const [hasNextPage, setHasNextPage] = useState(false);
   
   // State for search and sort
-  const [searchSKU, setSearchSKU] = useState(''); // Search input for SKU
+  const [searchTerm, setSearchTerm] = useState(''); // Search input for SKU or Name
   const [sortBySKUAsc, setSortBySKUAsc] = useState(true); // Sort order for SKU
   
   const { isAdmin, isManager } = useAuth();
@@ -107,10 +107,11 @@ const InventoryPanel = () => {
     fetchProductsAndInventory();
   }, [currentPage, itemsPerPage]);
 
-  // Filter and sort products based on searchSKU and sortBySKUAsc
+  // Filter and sort products based on searchTerm (SKU or Name) and sortBySKUAsc
   const filteredProducts = products
     .filter(product =>
-      product.sku.toLowerCase().includes(searchSKU.toLowerCase())
+      product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.name.toLowerCase().includes(searchTerm.toLowerCase())
     )
     .sort((a, b) => {
       if (sortBySKUAsc) {
@@ -577,27 +578,27 @@ const InventoryPanel = () => {
       <Heading mb={4}>Inventory</Heading>
       <Text mb={8}>View and edit quantities for your products.</Text>
       {/* Search and Sort Controls */}
-      <HStack mb={2} spacing={0} px={1} justifyContent="space-between">
-        {/* Search by SKU */}
+      <HStack mb={2} spacing={0} p={2} bg='gray.50' justifyContent="space-between">
+        {/* Search by SKU or Product Name */}
         <Input
-          placeholder="Search by SKU"
-          value={searchSKU}
-          onChange={e => setSearchSKU(e.target.value)}
-          width='auto'
+          placeholder="Search by SKU or Name"
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+          width='80%'
           size="sm"
         />
         {/* Sort by SKU toggle */}
-        <Button size="sm" width='auto' onClick={() => setSortBySKUAsc(prev => !prev)}>
+        <Button w='20%' size="sm" width='auto' onClick={() => setSortBySKUAsc(prev => !prev)}>
           SKU {sortBySKUAsc ? '▲' : '▼'}
         </Button>
-      </HStack>
-      <Box maxW="100%" h='25rem' overflow="auto"  p={ isMobile ? 0 : 2} borderWidth={1} borderRadius="md">
+      </HStack> 
+      <Box maxW="100%" h='25rem'  p={ isMobile ? 0 : 2} borderWidth={1} borderRadius="md">
         {fetching ? (
           <Box display="flex" justifyContent="center" alignItems="center" height="300px">
             <Spinner />
           </Box>
         ) : (
-          <Table variant="striped" maxW='100%' size="sm" h='100%' overflow='auto'>
+          <Table variant="striped" maxW='100%' size="sm" overflow='auto'>
             <Thead>
               <Tr>
                 <Th>SKU</Th>

@@ -73,7 +73,7 @@ const ProductsPanel = () => {
   const tableFontSize = useBreakpointValue({ base: 'xs', md: 'sm' });
   const isMobile = useBreakpointValue({ base: true, md: false });
   const [managerCanEditDescription, setManagerCanEditDescription] = useState(false);
-  const [skuSearch, setSkuSearch] = useState(""); // State for SKU search
+  const [searchTerm, setSearchTerm] = useState(""); // State for SKU or Name search
 
   // Calculate total pages
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -372,9 +372,12 @@ const ProductsPanel = () => {
     onClose();
   };
 
-  // Filter items by SKU search
-  const filteredItems = skuSearch
-    ? items.filter((item) => item.sku.toLowerCase().includes(skuSearch.toLowerCase()))
+  // Filter items by SKU or Name search
+  const filteredItems = searchTerm
+    ? items.filter((item) =>
+        item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.name.toLowerCase().includes(searchTerm.toLowerCase())
+      )
     : items;
 
   return (
@@ -382,19 +385,21 @@ const ProductsPanel = () => {
       <Heading mb={4}>Products</Heading>
       <Text mb={8}>This is the products panel. Add your product features here.</Text>
       
-      {isAdmin && (
         <>
           {/* Add Product Form */}
-          <Box as="form" w='' onSubmit={handleAdd} mt={2} mb={2} p={2} borderWidth={1} borderRadius="md" bg="gray.50">
-            <HStack spacing={3} justifyContent="space-between">
-              <Input
-                  name="skuSearch"
-                  placeholder="Search SKU"
-                  value={skuSearch}
-                  onChange={e => setSkuSearch(e.target.value)}
+          <Box as="form" w='100%' onSubmit={handleAdd} mt={2} mb={2} p={2} borderWidth={1} borderRadius="md" bg="gray.50">
+            <HStack mb={2} justifyContent='center' bg=''>
+                <Input
+                  name="searchTerm"
+                  placeholder="Search SKU or Name"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
                   size="sm"
-                  width="15%"
                 />
+            </HStack>
+            <HStack spacing={3} justifyContent="space-between">
+              {/* Search bar for SKU or Product Name */}
+
               <Input
                 name="sku"
                 placeholder="SKU"
@@ -438,9 +443,9 @@ const ProductsPanel = () => {
             </HStack>
           </Box>
         </>
-      )}
       
-      <Box maxW="100%" height="25rem" overflow="auto" p={2} borderWidth={1} borderRadius="md">
+      
+      <Box maxW="100%" height="23rem" overflow="auto" p={2} borderWidth={1} borderRadius="md">
         {fetching ? (
           <Box display="flex" justifyContent="center" alignItems="center" height="300px">
             <Spinner />
