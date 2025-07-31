@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Box, Heading, Table, Thead, Tbody, Tr, Th, Td, Spinner, Button, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, FormControl, FormLabel, Input, Select, VStack, HStack, Text, IconButton, useToast, useDisclosure, Menu, MenuButton, MenuList, MenuItem, Icon, useBreakpointValue, List, ListItem } from '@chakra-ui/react';
 import { AddIcon, CloseIcon } from '@chakra-ui/icons';
+import { ViewIcon, ViewOffIcon } from '@chakra-ui/icons'; // For eye icon
 import { collection, getDocs, orderBy, query, limit, startAfter, getCountFromServer, addDoc, deleteDoc, doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -45,6 +46,9 @@ const SalesPanel = () => {
 
   // State for search
   const [searchSaleCustomer, setSearchSaleCustomer] = useState(''); // Search input for sales by customer name
+
+  // State to control price visibility
+  const [showPrice, setShowPrice] = useState(false);
 
   const totalPages = Math.ceil(totalItems / itemsPerPage);
 
@@ -273,14 +277,12 @@ const SalesPanel = () => {
   };
 
   const checkInventoryQuantity = (productId, requestedQuantity) => {
-    // Find the product to get its SKU
-    const product = products.find(p => p.id === productId);
+    // Find the product by productId
+    const product = products.find(p => (p.productId || p.id) === productId);
     if (!product) return { available: 0, error: 'Product not found' };
-    
-    // Find inventory item by SKU
-    const inventoryItem = inventory.find(item => item.sku === product.sku);
+    // Find inventory item by productId
+    const inventoryItem = inventory.find(item => (item.productId || item.id) === (product.productId || product.id));
     if (!inventoryItem) return { available: 0, error: 'Product not found in inventory' };
-    
     const available = inventoryItem.quantity || 0;
     if (requestedQuantity > available) {
       return { 
@@ -351,18 +353,18 @@ const addNotification = async (message) => {
       
       // Deduct sold quantities from inventory
       for (const item of items) {
-        const product = products.find(p => p.id === item.productId);
+        // Find product and inventory by productId
+        const product = products.find(p => (p.productId || p.id) === item.productId);
         if (!product) continue;
-        const inventoryItem = inventory.find(inv => inv.sku === product.sku);
+        const inventoryItem = inventory.find(inv => (inv.productId || inv.id) === (product.productId || product.id));
         if (!inventoryItem) continue;
         const newQuantity = (inventoryItem.quantity || 0) - (parseFloat(item.quantity) || 0);
         try {
-          await updateDoc(doc(db, 'inventory', inventoryItem.id), { quantity: newQuantity });
+          await updateDoc(doc(db, 'inventory', inventoryItem.productId || inventoryItem.id), { quantity: newQuantity });
           // If new quantity is below the product's alert limit, add a notification to Firestore and send email
           const productAlertLimit = product.alert_limit || 5;
           if (newQuantity < productAlertLimit) {
             await addNotification(`Low stock alert: ${product.name} (SKU: ${product.sku}) now has only ${newQuantity} left (alert limit: ${productAlertLimit}).`);
-            
             // Send email notification to admin
             try {
               await sendLowStockEmail(
@@ -474,9 +476,10 @@ const addNotification = async (message) => {
 
   return (
     <Box minW={isMobile ? "100vw" : "calc(100vw - 220px)"} minH="100vh" p={ isMobile ? 0 : 2} textAlign="center" bg="white">
-      <Heading mb={6}>Sales</Heading>
+      <Heading mt={3} mb={6}>Sales</Heading>
       {/* Search by customer name for sales records */}
-      <HStack mb={2} spacing={0} p={2} bg='gray.50' justifyContent="space-between">
+      <Box h='85vh'>
+        <HStack mb={2} spacing={0} p={2} bg='gray.50' justifyContent="space-between">
         <Input
           placeholder="Search customer"
           value={searchSaleCustomer}
@@ -490,46 +493,46 @@ const addNotification = async (message) => {
           </Button>
         )}
       </HStack>
-      <Box maxW="100%" height="25rem" p={0} borderWidth={1} borderRadius="md" mb={4}>
+      <Box maxW="100%" height="27rem" overflowY='auto' p={0} borderWidth={1} borderRadius="md" mb={4}>
         {fetching ? (
           <Box display="flex" justifyContent="center" alignItems="center" height="300px">
             <Spinner />
           </Box>
         ) : (
-          <Table variant="striped" maxW="100%" size="sm">
-            <Thead>
+          <Table variant="striped" maxW="100%" size="sm" >
+            <Thead position='sticky' top={0} zIndex='docked' bg='white'>
               <Tr>
-                <Th>Invoice No</Th>
                 <Th>Date</Th>
                 <Th>Customer Name</Th>
-                { !isMobile && <Th>Total</Th>}
-                <Th></Th>
+                <Th>Quantity</Th>
+                <Th>
+                  <HStack spacing={1} justify="">
+                    <span>TOTAL</span>
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      onClick={() => setShowPrice((prev) => !prev)}
+                      aria-label={showPrice ? 'Hide Price' : 'Show Price'}
+                      px={1}
+                    >
+                      {showPrice ? <ViewIcon /> : <ViewOffIcon />}
+                    </Button>
+                  </HStack>
+                </Th>
               </Tr>
             </Thead>
             <Tbody>
               {/* Use filtered sales */}
               {filteredSales.map((sale) => (
                 <Tr key={sale.id}>
-                  <Td>{sale.invoiceNo}</Td>
                   <Td>{sale.date}</Td>
                   <Td>{sale.customerName}</Td>
-                  { !isMobile && <Td>Rs {sale.total?.toFixed(2)}</Td>}
-                  <Td textAlign="right">
-                    <Menu>
-                      <MenuButton size="xs">
-                        <Icon boxSize={4} as={BsThreeDotsVertical} cursor="pointer" />
-                      </MenuButton>
-                      <MenuList>
-                        <MenuItem borderRadius="none" onClick={() => handleViewInvoice(sale)}>
-                          View Invoice
-                        </MenuItem>
-                        {isAdmin && (
-                          <MenuItem borderRadius="none" color="red.500" onClick={() => handleDeleteSale(sale.id)}>
-                            Delete
-                          </MenuItem>
-                        )}
-                      </MenuList>
-                    </Menu>
+                  {/* Sum of all item quantities in the sale */}
+                  <Td>{Array.isArray(sale.items) ? sale.items.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0) : 0}</Td>
+                  <Td>
+                    {showPrice
+                      ? `Rs ${sale.total?.toFixed(2)}`
+                      : '********'}
                   </Td>
                 </Tr>
               ))}
@@ -685,15 +688,15 @@ const addNotification = async (message) => {
                     </Button>
                   </HStack>
                   
-                  <Box h='12rem' overflow='auto'>
+                  <Box h='12rem' w='' overflow='auto'>
                     {items.map((item, index) => (
                       <Box key={index} p={2} borderWidth={1} borderRadius="md" mb={2} >
                         <HStack spacing={2}>
-                          <FormControl isRequired>
+                          <FormControl w='' isRequired>
                             <FormLabel fontSize="sm">Product</FormLabel>
                             <Input
                               size="sm"
-                              placeholder="Search product by name or SKU"
+                              placeholder="Search"
                               value={productSearch[index] || ''}
                               onChange={e => {
                                 const val = e.target.value;
@@ -732,8 +735,22 @@ const addNotification = async (message) => {
                               </Box>
                             )}
                           </FormControl>
-                          
-                          <FormControl isRequired>
+                          {/* Available Quantity Field */}
+                          <FormControl w=''>
+                            <FormLabel fontSize="sm">Available</FormLabel>
+                            <Input size="sm"
+                              value={(() => {
+                                const product = products.find(p => p.id === item.productId);
+                                if (!product) return '';
+                                const inventoryItem = inventory.find(inv => inv.productId === product.productId);
+                                return inventoryItem ? inventoryItem.quantity : 'N/A';
+                              })()}
+                              isReadOnly
+                              bg="gray.100"
+                              color="gray.500"
+                            />
+                          </FormControl>
+                          <FormControl w='' isRequired>
                             <FormLabel fontSize="sm">Quantity</FormLabel>
                             <Input size="sm"
                               type="number"
@@ -745,7 +762,7 @@ const addNotification = async (message) => {
                             />
                           </FormControl>
                           
-                          <FormControl isRequired>
+                          <FormControl w='' isRequired>
                             <FormLabel fontSize="sm">Price</FormLabel>
                             <Input size="sm"
                               type="number"
@@ -757,7 +774,7 @@ const addNotification = async (message) => {
                             />
                           </FormControl>
                           
-                          <FormControl>
+                          <FormControl w=''>
                             <FormLabel fontSize="sm">Total</FormLabel>
                             <Input size="sm"
                               value={`Rs ${item.total?.toFixed(2)}`}
@@ -801,6 +818,7 @@ const addNotification = async (message) => {
           </form>
         </ModalContent>
       </Modal>
+      </Box>
     </Box>
   );
 };

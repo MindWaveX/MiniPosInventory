@@ -38,7 +38,8 @@ const Navbar = ({ activePanel, setActivePanel }) => {
       { name: 'Customers', panel: 'customers' }
     ] : []),
     ...(isAdmin ? [
-      { name: 'Settings', panel: 'settings' }
+      { name: 'Settings', panel: 'settings' },
+      {name: 'Reports', panel: 'reports'}
     ] : [])
   ];
 

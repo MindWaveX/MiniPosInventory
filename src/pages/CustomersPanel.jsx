@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Box, Heading, Table, Thead, Tbody, Tr, Th, Td, Divider , FormControl, Input, Button, useToast, HStack, Spinner, Menu, MenuButton, MenuList, MenuItem, Icon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay, useDisclosure, useBreakpointValue, FormLabel, NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper, } from '@chakra-ui/react';
 import { BsThreeDotsVertical } from 'react-icons/bs';
-import { collection, addDoc, getDocs, orderBy, query, limit, startAfter, getCountFromServer, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, orderBy, query, limit, startAfter, getCountFromServer, doc, updateDoc, deleteDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import Pagination from '../components/Pagination';
@@ -206,12 +206,23 @@ const CustomersPanel = () => {
     if (!customerToDelete) return;
     setDeleting(prev => ({ ...prev, [customerToDelete.id]: true }));
     try {
+      // First, query and delete all sales records for this customer
+      const salesQuery = query(collection(db, 'sales'), where('customerId', '==', customerToDelete.id));
+      const salesSnapshot = await getDocs(salesQuery);
+      const deletePromises = [];
+      salesSnapshot.forEach((doc) => {
+        deletePromises.push(deleteDoc(doc.ref));
+      });
+      await Promise.all(deletePromises);
+
+      // Then, delete the customer document
       await deleteDoc(doc(db, 'customers', customerToDelete.id));
+
       await fetchTotalCount();
       await fetchCustomers();
       toast({
         title: 'Customer Deleted',
-        description: `${customerToDelete.name} has been successfully deleted.`,
+        description: `${customerToDelete.name} and all their sales records have been successfully deleted.`,
         status: 'success',
         duration: 2000,
         isClosable: true,
@@ -219,7 +230,7 @@ const CustomersPanel = () => {
     } catch (err) {
       toast({
         title: 'Error',
-        description: 'Failed to delete customer',
+        description: 'Failed to delete customer and their sales records',
         status: 'error',
         duration: 4000,
         isClosable: true,
@@ -258,257 +269,261 @@ const CustomersPanel = () => {
   if (!isAdmin && !isManager) return null;
 
   return (
-    <Box minW={isMobile ? "100vw" : "calc(100vw - 220px)"} minH="100vh" p={isMobile ? 0 : 2} textAlign="center" bg="white">
-      <Heading mb={6}>Customers</Heading>
+    <Box minW={isMobile ? "100vw" : "calc(100vw - 220px)"} display='flex' flexDirection='column' minH="100vh" px={isMobile ? 0 : 2} textAlign="center" bg="">
+      <Heading mt={3} mb={3}>Customers</Heading>
       {/* Search by customer name or company */}
     
-        <Box as="form" maxW={ isMobile ? '100vw' : '100%'} onSubmit={handleAdd} mt={6} mb={4} p={2} borderWidth={1} borderRadius="md" bg="gray.50">
-          <HStack px={2} mb={1}>
-            <Input
-              placeholder="Search Customer"
-              value={searchCustomer}
-              onChange={e => setSearchCustomer(e.target.value)}
-              width="100%"
-              size="sm"
-            />
-          </HStack>
-          <HStack spacing={3} p={2} justifyContent="space-between" w='100%'>
-            <Input
-              name="name"
-              placeholder="Customer Name"
-              value={form.name}
-              onChange={handleChange}
-              required
-              size="sm"
-              width="40%"
-            />
-            <Input
-              name="company"
-              placeholder="Company Name"
-              value={form.company}
-              onChange={handleChange}
-              required
-              size="sm"
-              width="40%"
-            />
-            <Button w='20%' size="sm" colorScheme="teal" type="submit" isLoading={loading}>
-              Add
-            </Button>
-          </HStack>
+      <Box minH='100%' bg=''>
+        <Box minH='100%' as="form" maxW={ isMobile ? '100vw' : '100%'} onSubmit={handleAdd} mt={6} mb={4} p={2} borderWidth={1} borderRadius="md" bg="gray.50">
+        <HStack px={2} mb={1}>
+          <Input
+            placeholder="Search Customer"
+            value={searchCustomer}
+            onChange={e => setSearchCustomer(e.target.value)}
+            width="100%"
+            size="sm"
+          />
+        </HStack>
+        <HStack spacing={3} p={2} justifyContent="space-between" w='100%'>
+          <Input
+            name="name"
+            placeholder="Customer Name"
+            value={form.name}
+            onChange={handleChange}
+            required
+            size="sm"
+            autoComplete=''
+            width="40%"
+          />
+          <Input
+            name="company"
+            placeholder="Company Name"
+            value={form.company}
+            onChange={handleChange}
+            required
+            size="sm"
+            autoComplete=''
+            width="40%"
+          />
+          <Button w='20%' size="sm" colorScheme="teal" type="submit" isLoading={loading}>
+            Add
+          </Button>
+        </HStack>
         </Box>
-      <Box maxW="100vw" height="24rem" p={0} overflowX='auto' borderWidth={1} borderRadius="md" mb={4}>
-        {fetching ? (
-          <Box display="flex" justifyContent="center" alignItems="center" height="300px">
-            <Spinner />
-          </Box>
-        ) : (
-          <Table variant="striped" size="sm" overflow='auto'>
-            <Thead>
-              <Tr>
-                <Th>Name</Th>
-                <Th>Company</Th>
-                <Th>Rs Credit</Th>
-                {isAdmin && <Th></Th>}
-              </Tr>
-            </Thead>
-            <Tbody>
-              {/* Use filtered customers */}
-              {filteredCustomers.map((customer) => (
-                <Tr key={customer.id}>
-                  <Td>{customer.name}</Td>
-                  <Td>{customer.company}</Td>
-                  <Td>
-                    {isAdmin ? (
-                      <HStack spacing={1} maxW={60}>
-                        {/* Display current credit value (uneditable) */}
-                        <Box minW={16} textAlign="center">{customer.credit}</Box>
-                        {/* Decrement Button */}
-                        <Button
-                          size="xs"
-                          onClick={() => {
-                            const delta = Number(creditDeltaEdits[customer.id]);
-                            if (!isNaN(delta) && delta !== 0) {
-                              const newCredit = customer.credit - delta;
-                              setCreditLoading(prev => ({ ...prev, [customer.id]: true }));
-                              updateDoc(doc(db, 'customers', customer.id), { credit: newCredit })
-                                .then(() => {
-                                  setCustomers(prev => prev.map(c => c.id === customer.id ? { ...c, credit: newCredit } : c));
-                                  toast({ title: 'Credit Updated', status: 'success', duration: 1500, isClosable: true });
-                                })
-                                .catch(() => {
-                                  toast({ title: 'Error', description: 'Failed to update credit', status: 'error', duration: 3000, isClosable: true });
-                                })
-                                .finally(() => {
-                                  setCreditLoading(prev => ({ ...prev, [customer.id]: false }));
-                                });
-                              // Clear the delta input after operation
-                              setCreditDeltaEdits(prev => ({ ...prev, [customer.id]: '' }));
-                            }
-                          }}
-                          isDisabled={creditLoading[customer.id] || !creditDeltaEdits[customer.id] || isNaN(Number(creditDeltaEdits[customer.id]))}
-                        >
-                          -
-                        </Button>
-                        {/* Editable delta input field */}
-                        <NumberInput
-                          size="sm"
-                          value={creditDeltaEdits[customer.id] !== undefined ? creditDeltaEdits[customer.id] : ''}
-                          onChange={(valueAsString) => setCreditDeltaEdits(prev => ({ ...prev, [customer.id]: valueAsString }))}
-                          isDisabled={creditLoading[customer.id]}
-                          maxW={20}
-                        >
-                          <NumberInputField
-                            type='number'
-                            placeholder="0"
-                            onKeyDown={e => { if (e.key === 'Enter') { e.target.blur(); } }}
-                            // Only allow digits (no +, - or other non-numeric chars)
-                            onInput={e => {
-                              const cleaned = e.target.value.replace(/[^\d]/g, '');
-                              e.target.value = cleaned;
-                              setCreditDeltaEdits(prev => ({ ...prev, [customer.id]: cleaned }));
-                            }}
-                          />
-                        </NumberInput>
-                        {/* Increment Button */}
-                        <Button
-                          size="xs"
-                          onClick={() => {
-                            const delta = Number(creditDeltaEdits[customer.id]);
-                            if (!isNaN(delta) && delta !== 0) {
-                              const newCredit = customer.credit + delta;
-                              setCreditLoading(prev => ({ ...prev, [customer.id]: true }));
-                              updateDoc(doc(db, 'customers', customer.id), { credit: newCredit })
-                                .then(() => {
-                                  setCustomers(prev => prev.map(c => c.id === customer.id ? { ...c, credit: newCredit } : c));
-                                  toast({ title: 'Credit Updated', status: 'success', duration: 1500, isClosable: true });
-                                })
-                                .catch(() => {
-                                  toast({ title: 'Error', description: 'Failed to update credit', status: 'error', duration: 3000, isClosable: true });
-                                })
-                                .finally(() => {
-                                  setCreditLoading(prev => ({ ...prev, [customer.id]: false }));
-                                });
-                              // Clear the delta input after operation
-                              setCreditDeltaEdits(prev => ({ ...prev, [customer.id]: '' }));
-                            }
-                          }}
-                          isDisabled={creditLoading[customer.id] || !creditDeltaEdits[customer.id] || isNaN(Number(creditDeltaEdits[customer.id]))}
-                        >
-                          +
-                        </Button>
-                      </HStack>
-                    ) : (
-                      customer.credit
-                    )}
-                  </Td>
-                  {isAdmin && (
-                    <Td textAlign="right">
-                      <Menu>
-                        <MenuButton size="xs">
-                          <Icon boxSize={4} as={BsThreeDotsVertical} cursor="pointer" />
-                        </MenuButton>
-                        <MenuList>
-                          <MenuItem borderRadius="none" onClick={() => handleEditClick(customer)}>
-                            Edit
-                          </MenuItem>
-                          <MenuItem borderRadius="none" color="red.500" onClick={() => handleDeleteClick(customer)} isDisabled={deleting[customer.id]}>
-                            {deleting[customer.id] ? 'Deleting...' : 'Delete'}
-                          </MenuItem>
-                        </MenuList>
-                      </Menu>
-                    </Td>
-                  )}
+        <Box maxW="100vw" minH="23rem" p={0} overflowX='auto' borderWidth={1} borderRadius="md" mb={4}>
+          {fetching ? (
+            <Box display="flex" justifyContent="center" alignItems="center" height="300px">
+              <Spinner />
+            </Box>
+          ) : (
+            <Table variant="striped" size="sm" overflow='auto'>
+              <Thead position='sticky' top={0} zIndex='docked' bg='white'>
+                <Tr>
+                  <Th>Name</Th>
+                  <Th>Company</Th>
+                  <Th>Rs Credit</Th>
+                  {isAdmin && <Th></Th>}
                 </Tr>
-              ))}
-            </Tbody>
-          </Table>
-        )}
-      </Box>
-      <Pagination
-        currentPage={currentPage}
-        totalPages={totalPages}
-        totalItems={totalItems}
-        itemsPerPage={itemsPerPage}
-        onPageChange={handlePageChange}
-        onItemsPerPageChange={handleItemsPerPageChange}
-        isLoading={fetching}
-      />
+              </Thead>
+              <Tbody>
+                {/* Use filtered customers */}
+                {filteredCustomers.map((customer) => (
+                  <Tr key={customer.id}>
+                    <Td>{customer.name}</Td>
+                    <Td>{customer.company}</Td>
+                    <Td>
+                      {isAdmin ? (
+                        <HStack spacing={1} maxW={60}>
+                          {/* Display current credit value (uneditable) */}
+                          <Box minW={16} textAlign="center">{customer.credit}</Box>
+                          {/* Decrement Button */}
+                          <Button
+                            size="xs"
+                            onClick={() => {
+                              const delta = Number(creditDeltaEdits[customer.id]);
+                              if (!isNaN(delta) && delta !== 0) {
+                                const newCredit = customer.credit - delta;
+                                setCreditLoading(prev => ({ ...prev, [customer.id]: true }));
+                                updateDoc(doc(db, 'customers', customer.id), { credit: newCredit })
+                                  .then(() => {
+                                    setCustomers(prev => prev.map(c => c.id === customer.id ? { ...c, credit: newCredit } : c));
+                                    toast({ title: 'Credit Updated', status: 'success', duration: 1500, isClosable: true });
+                                  })
+                                  .catch(() => {
+                                    toast({ title: 'Error', description: 'Failed to update credit', status: 'error', duration: 3000, isClosable: true });
+                                  })
+                                  .finally(() => {
+                                    setCreditLoading(prev => ({ ...prev, [customer.id]: false }));
+                                  });
+                                // Clear the delta input after operation
+                                setCreditDeltaEdits(prev => ({ ...prev, [customer.id]: '' }));
+                              }
+                            }}
+                            isDisabled={creditLoading[customer.id] || !creditDeltaEdits[customer.id] || isNaN(Number(creditDeltaEdits[customer.id]))}
+                          >
+                            -
+                          </Button>
+                          {/* Editable delta input field */}
+                          <NumberInput
+                            size="sm"
+                            value={creditDeltaEdits[customer.id] !== undefined ? creditDeltaEdits[customer.id] : ''}
+                            onChange={(valueAsString) => setCreditDeltaEdits(prev => ({ ...prev, [customer.id]: valueAsString }))}
+                            isDisabled={creditLoading[customer.id]}
+                            maxW={20}
+                          >
+                            <NumberInputField
+                              type='number'
+                              placeholder="0"
+                              onKeyDown={e => { if (e.key === 'Enter') { e.target.blur(); } }}
+                              // Only allow digits (no +, - or other non-numeric chars)
+                              onInput={e => {
+                                const cleaned = e.target.value.replace(/[^\d]/g, '');
+                                e.target.value = cleaned;
+                                setCreditDeltaEdits(prev => ({ ...prev, [customer.id]: cleaned }));
+                              }}
+                            />
+                          </NumberInput>
+                          {/* Increment Button */}
+                          <Button
+                            size="xs"
+                            onClick={() => {
+                              const delta = Number(creditDeltaEdits[customer.id]);
+                              if (!isNaN(delta) && delta !== 0) {
+                                const newCredit = customer.credit + delta;
+                                setCreditLoading(prev => ({ ...prev, [customer.id]: true }));
+                                updateDoc(doc(db, 'customers', customer.id), { credit: newCredit })
+                                  .then(() => {
+                                    setCustomers(prev => prev.map(c => c.id === customer.id ? { ...c, credit: newCredit } : c));
+                                    toast({ title: 'Credit Updated', status: 'success', duration: 1500, isClosable: true });
+                                  })
+                                  .catch(() => {
+                                    toast({ title: 'Error', description: 'Failed to update credit', status: 'error', duration: 3000, isClosable: true });
+                                  })
+                                  .finally(() => {
+                                    setCreditLoading(prev => ({ ...prev, [customer.id]: false }));
+                                  });
+                                // Clear the delta input after operation
+                                setCreditDeltaEdits(prev => ({ ...prev, [customer.id]: '' }));
+                              }
+                            }}
+                            isDisabled={creditLoading[customer.id] || !creditDeltaEdits[customer.id] || isNaN(Number(creditDeltaEdits[customer.id]))}
+                          >
+                            +
+                          </Button>
+                        </HStack>
+                      ) : (
+                        customer.credit
+                      )}
+                    </Td>
+                    {isAdmin && (
+                      <Td textAlign="right">
+                        <Menu>
+                          <MenuButton size="xs">
+                            <Icon boxSize={4} as={BsThreeDotsVertical} cursor="pointer" />
+                          </MenuButton>
+                          <MenuList>
+                            <MenuItem borderRadius="none" onClick={() => handleEditClick(customer)}>
+                              Edit
+                            </MenuItem>
+                            <MenuItem borderRadius="none" color="red.500" onClick={() => handleDeleteClick(customer)} isDisabled={deleting[customer.id]}>
+                              {deleting[customer.id] ? 'Deleting...' : 'Delete'}
+                            </MenuItem>
+                          </MenuList>
+                        </Menu>
+                      </Td>
+                    )}
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          )}
+        </Box>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          itemsPerPage={itemsPerPage}
+          onPageChange={handlePageChange}
+          onItemsPerPageChange={handleItemsPerPageChange}
+          isLoading={fetching}
+        />
 
       {/* Edit Customer Modal */}
-      <Modal isOpen={isEditOpen} onClose={onEditClose} isCentered>
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>Edit Customer</ModalHeader>
-          <ModalCloseButton />
-          <form onSubmit={handleEditSubmit}>
-            <ModalBody>
-              <FormControl id="edit-name" mb={4} isRequired>
-                {/* Label for Name field */}
-                <FormLabel>Name</FormLabel>
-                <Input
-                  name="name"
-                  value={editForm.name}
-                  onChange={handleEditChange}
-                  placeholder="Enter customer name"
-                />
-              </FormControl>
-              <FormControl id="edit-company" mb={4} isRequired>
-                {/* Label for Company field */}
-                <FormLabel>Company</FormLabel>
-                <Input
-                  name="company"
-                  value={editForm.company}
-                  onChange={handleEditChange}
-                  placeholder="Enter company name"
-                />
-              </FormControl>
-              <FormControl id="edit-credit" mb={4} isRequired>
-                <FormLabel>Rs Credit</FormLabel>
-                <Input
-                  name="credit"
-                  type="number"
-                  value={editForm.credit}
-                  onChange={handleEditChange}
-                  placeholder="Enter credit amount"
-                />
-                
-              </FormControl>
-            </ModalBody>
-            <ModalFooter>
-              <Button variant="ghost" mr={3} onClick={onEditClose}>
-                Cancel
-              </Button>
-              <Button colorScheme="teal" type="submit" isLoading={updating}>
-                Update Customer
-              </Button>
-            </ModalFooter>
-          </form>
-        </ModalContent>
-      </Modal>
+        <Modal isOpen={isEditOpen} onClose={onEditClose} isCentered>
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>Edit Customer</ModalHeader>
+            <ModalCloseButton />
+            <form onSubmit={handleEditSubmit}>
+              <ModalBody>
+                <FormControl id="edit-name" mb={4} isRequired>
+                  {/* Label for Name field */}
+                  <FormLabel>Name</FormLabel>
+                  <Input
+                    name="name"
+                    value={editForm.name}
+                    onChange={handleEditChange}
+                    placeholder="Enter customer name"
+                  />
+                </FormControl>
+                <FormControl id="edit-company" mb={4} isRequired>
+                  {/* Label for Company field */}
+                  <FormLabel>Company</FormLabel>
+                  <Input
+                    name="company"
+                    value={editForm.company}
+                    onChange={handleEditChange}
+                    placeholder="Enter company name"
+                  />
+                </FormControl>
+                <FormControl id="edit-credit" mb={4} isRequired>
+                  <FormLabel>Rs Credit</FormLabel>
+                  <Input
+                    name="credit"
+                    type="number"
+                    value={editForm.credit}
+                    onChange={handleEditChange}
+                    placeholder="Enter credit amount"
+                  />
+                  
+                </FormControl>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="ghost" mr={3} onClick={onEditClose}>
+                  Cancel
+                </Button>
+                <Button colorScheme="teal" type="submit" isLoading={updating}>
+                  Update Customer
+                </Button>
+              </ModalFooter>
+            </form>
+          </ModalContent>
+        </Modal>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog isOpen={isOpen} leastDestructiveRef={cancelRef} onClose={onClose}>
-        <AlertDialogOverlay>
-          <AlertDialogContent>
-            <AlertDialogHeader fontSize="lg" fontWeight="bold">
-              Delete Customer
-            </AlertDialogHeader>
-            <AlertDialogBody>
-              Are you sure you want to delete "{customerToDelete?.name}"? This action cannot be undone.
-            </AlertDialogBody>
-            <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={onClose}>
-                Cancel
-              </Button>
-              <Button colorScheme="red" onClick={handleDeleteConfirm} ml={3} isLoading={customerToDelete && deleting[customerToDelete.id]}>
-                Delete
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialogOverlay>
-      </AlertDialog>
+        <AlertDialog isOpen={isOpen} leastDestructiveRef={cancelRef} onClose={onClose}>
+          <AlertDialogOverlay>
+            <AlertDialogContent>
+              <AlertDialogHeader fontSize="lg" fontWeight="bold">
+                Delete Customer
+              </AlertDialogHeader>
+              <AlertDialogBody>
+                Are you sure you want to delete "{customerToDelete?.name}"? This action cannot be undone.
+              </AlertDialogBody>
+              <AlertDialogFooter>
+                <Button ref={cancelRef} onClick={onClose}>
+                  Cancel
+                </Button>
+                <Button colorScheme="red" onClick={handleDeleteConfirm} ml={3} isLoading={customerToDelete && deleting[customerToDelete.id]}>
+                  Delete
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialogOverlay>
+        </AlertDialog>
+      </Box>
     </Box>
   );
 };
 
-export default CustomersPanel; 
+export default CustomersPanel;

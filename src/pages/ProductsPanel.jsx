@@ -40,14 +40,15 @@ import {
   FormLabel
 } from '@chakra-ui/react';
 import { BsThreeDotsVertical } from 'react-icons/bs';
-import { collection, getDocs, addDoc, query, where, deleteDoc, doc, limit, startAfter, orderBy, getCountFromServer, updateDoc, getDoc } from 'firebase/firestore';
+import { ViewIcon, ViewOffIcon } from '@chakra-ui/icons'; // For price visibility toggle
+import { collection, getDocs, addDoc, query, where, deleteDoc, doc, limit, startAfter, orderBy, getCountFromServer, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import Pagination from '../components/Pagination';
 
 const ProductsPanel = () => {
   const [items, setItems] = useState([]);
-  const [form, setForm] = useState({ sku: '', name: '', price: '', description: '' });
+  const [form, setForm] = useState({ sku: '', name: '', price: '', alert_limit: '', quantity: '' }); // Added quantity and alert_limit
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [deleting, setDeleting] = useState({});
@@ -74,6 +75,7 @@ const ProductsPanel = () => {
   const isMobile = useBreakpointValue({ base: true, md: false });
   const [managerCanEditDescription, setManagerCanEditDescription] = useState(false);
   const [searchTerm, setSearchTerm] = useState(""); // State for SKU or Name search
+  const [showPrice, setShowPrice] = useState(false); // State to control price visibility
 
   // Calculate total pages
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -222,23 +224,7 @@ const ProductsPanel = () => {
     setUpdating(true);
     
     try {
-      // Check for duplicate SKU (excluding the current product)
-      if (editForm.sku !== editingProduct.sku) {
-        const q = query(collection(db, 'products'), where('sku', '==', editForm.sku));
-        const querySnapshot = await getDocs(q);
-        
-        if (!querySnapshot.empty) {
-          toast({
-            title: 'Duplicate SKU',
-            description: 'A product with this SKU already exists!',
-            status: 'error',
-            duration: 5000,
-            isClosable: true,
-          });
-          setUpdating(false);
-          return;
-        }
-      }
+      // No duplicate SKU check (allow multiple SKUs)
 
       // Update the product
       await updateDoc(doc(db, 'products', editingProduct.id), {
@@ -248,6 +234,14 @@ const ProductsPanel = () => {
         alert_limit: parseInt(editForm.alert_limit) || 5,
         ...(isAdmin ? { description: editForm.description } : {})
       });
+
+      // Also update the inventory collection using productId as the doc id
+      await setDoc(doc(db, 'inventory', editingProduct.id), {
+        productId: editingProduct.id, // Reference to product
+        sku: editForm.sku,
+        productName: editForm.name,
+        alert_limit: parseInt(editForm.alert_limit) || 5
+      }, { merge: true });
 
       // Refresh the data
       await fetchProducts();
@@ -278,40 +272,36 @@ const ProductsPanel = () => {
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!form.sku || !form.name || !form.price) return;
+    if (!form.sku || !form.name || !form.price || form.quantity === '') return; // Require quantity
     setLoading(true);
 
     try {
-      // Check for duplicate SKU
-      const q = query(collection(db, 'products'), where('sku', '==', form.sku));
-      const querySnapshot = await getDocs(q);
-
-      if (!querySnapshot.empty) {
-        toast({
-          title: 'Duplicate SKU',
-          description: 'A product with this SKU already exists!',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Add new product if SKU is unique
+      // Add new product (no SKU uniqueness check)
       const docRef = await addDoc(collection(db, 'products'), {
         sku: form.sku,
         name: form.name,
         price: parseFloat(form.price),
-        description: form.description || '',
-        alert_limit: 5 // Default alert limit of 5
+        description: '', // Default empty description - can be set later via edit
+        quantity: parseInt(form.quantity) || 0, // Store quantity in products (legacy)
+        alert_limit: parseInt(form.alert_limit) || 5 // Use form alert_limit or default to 5
       });
+      // Add productId to the product document (using Firestore doc.id)
+      await updateDoc(docRef, { productId: docRef.id });
+
+      // Also add to inventory collection for inventory tracking
+      await setDoc(doc(db, 'inventory', docRef.id), {
+        productId: docRef.id, // Reference to product
+        sku: form.sku,
+        productName: form.name,
+        quantity: parseInt(form.quantity) || 0,
+        alert_limit: parseInt(form.alert_limit) || 5 // Store alert_limit in inventory as well
+      }, { merge: true });
       
       // Refresh the data to show the new product
       await fetchTotalCount();
       await fetchProducts();
       
-      setForm({ sku: '', name: '', price: '', description: '' });
+      setForm({ sku: '', name: '', price: '', alert_limit: '', quantity: '' }); // Reset form
       
       toast({
         title: 'Product Added',
@@ -372,13 +362,14 @@ const ProductsPanel = () => {
     onClose();
   };
 
-  // Filter items by SKU or Name search
-  const filteredItems = searchTerm
+  // Filter items by SKU or Name search, then sort alphabetically by SKU
+  const filteredItems = (searchTerm
     ? items.filter((item) =>
         item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.name.toLowerCase().includes(searchTerm.toLowerCase())
       )
-    : items;
+    : items
+  ).slice().sort((a, b) => a.sku.localeCompare(b.sku));
 
   return (
     <Box minW={isMobile ? "100vw" : "calc(100vw - 220px)"} minH={isMobile ? '' : "100vh"} p={2} textAlign="center" bg="white">
@@ -395,6 +386,7 @@ const ProductsPanel = () => {
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
                   size="sm"
+                  autoComplete=''
                 />
             </HStack>
             <HStack spacing={3} justifyContent="space-between">
@@ -407,7 +399,8 @@ const ProductsPanel = () => {
                 onChange={handleChange}
                 required
                 size="sm"
-                width="10%"
+                width={isMobile ? '16%' : "10%"}
+                autoComplete=''
               />
               <Input
                 name="name"
@@ -417,15 +410,7 @@ const ProductsPanel = () => {
                 required
                 size="sm"
                 width="20%"
-              />
-              {/* Description field added below */}
-              <Input
-                name="description"
-                placeholder="Desc."
-                value={form.description}
-                onChange={handleChange}
-                size="sm"
-                width="20%"
+                autoComplete=''
               />
               <NumberInput
                 size="sm"
@@ -435,29 +420,67 @@ const ProductsPanel = () => {
                 clampValueOnBlur
                 width="20%"
               >
-                <NumberInputField name="price" placeholder="Price" />
+                <NumberInputField name="price" placeholder="Price" px={2} />
+              </NumberInput>
+              {/* Quantity input (new) */}
+              <NumberInput
+                size="sm"
+                value={form.quantity}
+                onChange={value => setForm(prev => ({ ...prev, quantity: value }))}
+                min={0}
+                clampValueOnBlur
+                width={ isMobile ? '20%' : "7%"}
+                isRequired
+              >
+                <NumberInputField name="quantity" placeholder="Qty" px={2} />
+              </NumberInput>
+              {/* Alert Limit field */}
+              <NumberInput
+                size="sm"
+                value={form.alert_limit}
+                onChange={value => setForm(prev => ({ ...prev, alert_limit: value }))}
+                min={1}
+                clampValueOnBlur
+                width="20%"
+              >
+                <NumberInputField name="alert_limit" placeholder="Alert" px={2} />
               </NumberInput>
               <Button w='10%' size="sm" colorScheme="teal" type="submit" isLoading={loading}>
                 Add
               </Button>
             </HStack>
+            
           </Box>
         </>
       
       
-      <Box maxW="100%" height="23rem" overflow="auto" p={2} borderWidth={1} borderRadius="md">
+      <Box maxW="100%" height="23rem" overflow="auto" p={2} overflowY='auto' borderWidth={1} borderRadius="md">
         {fetching ? (
           <Box display="flex" justifyContent="center" alignItems="center" height="300px">
             <Spinner />
           </Box>
         ) : (
           <Table variant="striped" overflow='auto' size="sm" fontSize={tableFontSize}>
-            <Thead>
+            <Thead position='sticky' top={-2} zIndex='docked' bg='white'>
               <Tr>
                 <Th>SKU</Th>
                 <Th>Product Name</Th>
-                { isMobile ? '' : <Th>Description</Th>}
-                <Th>Price</Th>
+                { isMobile ? '' : <Th>Alert Limit</Th>}
+                {/* Price column header with toggle button */}
+                <Th>
+                  <HStack spacing={1} justify="">
+                    <span>Price</span>
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      onClick={() => setShowPrice((prev) => !prev)}
+                      aria-label={showPrice ? 'Hide Price' : 'Show Price'}
+                      px={1}
+                    >
+                      {showPrice ? <ViewIcon /> : <ViewOffIcon />}
+                    </Button>
+                  </HStack>
+                </Th>
                 {isAdmin && <Th></Th>}
               </Tr>
             </Thead>
@@ -467,8 +490,11 @@ const ProductsPanel = () => {
                 <Tr key={item.id}>
                   <Td>{item.sku}</Td>
                   <Td>{item.name}</Td>
-                  { isMobile ? '' : <Td>{item.description}</Td>}
-                  <Td textAlign="left">Rs {item.price?.toFixed(2)}</Td>
+                  { isMobile ? '' : <Td>{item.alert_limit || 5}</Td>}
+                  {/* Price cell with visibility toggle */}
+                  <Td textAlign="left">
+                    {showPrice ? `Rs ${item.price?.toFixed(2)}` : '********'}
+                  </Td>
                   {isAdmin && (
                     <Td textAlign="right">
                       <Menu>

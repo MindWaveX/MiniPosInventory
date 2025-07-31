@@ -213,13 +213,16 @@ const InventoryPanel = () => {
       const inventorySnapshot = await getDocs(collection(db, 'inventory'));
       const inventoryMap = {};
       inventorySnapshot.docs.forEach(doc => {
-        inventoryMap[doc.data().sku] = doc.data().quantity;
+        // Use productId as the key if available, otherwise fallback to doc.id or SKU for legacy data
+        const inv = doc.data();
+        const key = inv.productId || doc.id || inv.sku;
+        inventoryMap[key] = inv.quantity;
       });
 
-      // Merge products with their inventory quantities
+      // Merge products with their inventory quantities using productId
       const mergedProducts = productsList.map(product => ({
         ...product,
-        quantity: inventoryMap[product.sku] || 0,
+        quantity: inventoryMap[product.productId || product.id] || 0,
         description: product.description || ''
       }));
 
@@ -327,9 +330,10 @@ const InventoryPanel = () => {
     setUpdatingQuantity(true);
     
     try {
-      // Update inventory collection
-      const inventoryRef = doc(db, 'inventory', editingQuantityProduct.sku);
+      // Update inventory collection using productId as the doc id
+      const inventoryRef = doc(db, 'inventory', editingQuantityProduct.productId || editingQuantityProduct.id);
       await setDoc(inventoryRef, {
+        productId: editingQuantityProduct.productId || editingQuantityProduct.id, // Reference to product
         sku: editingQuantityProduct.sku,
         productName: editingQuantityProduct.name,
         quantity: newQuantity
@@ -457,8 +461,9 @@ const InventoryPanel = () => {
     
     try {
       // Update inventory collection
-      const inventoryRef = doc(db, 'inventory', editingQuantityProduct.sku);
+      const inventoryRef = doc(db, 'inventory', editingQuantityProduct.productId || editingQuantityProduct.id);
       await setDoc(inventoryRef, {
+        productId: editingQuantityProduct.productId || editingQuantityProduct.id, // Reference to product
         sku: editingQuantityProduct.sku,
         productName: editingQuantityProduct.name,
         quantity: newQuantity
@@ -574,11 +579,14 @@ const InventoryPanel = () => {
   };
 
   return (
-    <Box minW={isMobile ? "100vw" : "calc(100vw - 220px)"} minH={isMobile ? '' : "100vh"} p={ isMobile ? 0 : 2} textAlign="center" bg="white">
-      <Heading mb={4}>Inventory</Heading>
-      <Text mb={8}>View and edit quantities for your products.</Text>
+    <Box minW={isMobile ? "100vw" : "calc(100vw - 220px)"} minH={isMobile ? '' : "100vh"} p={ isMobile ? 0 : 2} textAlign="center">
+      <Box>
+        <Heading mt={3} mb={4}>Inventory</Heading>
+        <Text mb={8}>View and edit quantities for your products.</Text>
+      </Box>
       {/* Search and Sort Controls */}
-      <HStack mb={2} spacing={0} p={2} bg='gray.50' justifyContent="space-between">
+      <Box h='' bg=''>
+        <HStack mb={2} spacing={0} p={2} bg='gray.50' justifyContent="space-between">
         {/* Search by SKU or Product Name */}
         <Input
           placeholder="Search by SKU or Name"
@@ -592,14 +600,14 @@ const InventoryPanel = () => {
           SKU {sortBySKUAsc ? '▲' : '▼'}
         </Button>
       </HStack> 
-      <Box maxW="100%" h='25rem'  p={ isMobile ? 0 : 2} borderWidth={1} borderRadius="md">
+      <Box maxW="100%" h='24rem'  p={ isMobile ? 0 : 2} borderWidth={1} overflowY='auto' borderRadius="md">
         {fetching ? (
           <Box display="flex" justifyContent="center" alignItems="center" height="300px">
             <Spinner />
           </Box>
         ) : (
-          <Table variant="striped" maxW='100%' size="sm" overflow='auto'>
-            <Thead>
+          <Table variant="striped" maxW='100%' size="sm">
+            <Thead position='sticky' top={-2} zIndex='docked' bg='white'>
               <Tr>
                 <Th>SKU</Th>
                 <Th>Product Name</Th>
@@ -890,6 +898,7 @@ const InventoryPanel = () => {
           </form>
         </ModalContent>
       </Modal>
+      </Box>
     </Box>
   );
 };
