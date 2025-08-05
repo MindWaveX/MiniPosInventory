@@ -504,7 +504,7 @@ const addNotification = async (message) => {
               <Tr>
                 <Th>Date</Th>
                 <Th>Customer Name</Th>
-                <Th>Quantity</Th>
+                { !isMobile && <Th>Quantity</Th>}
                 <Th>
                   <HStack spacing={1} justify="">
                     <span>TOTAL</span>
@@ -519,6 +519,7 @@ const addNotification = async (message) => {
                     </Button>
                   </HStack>
                 </Th>
+                <Th></Th>
               </Tr>
             </Thead>
             <Tbody>
@@ -528,11 +529,30 @@ const addNotification = async (message) => {
                   <Td>{sale.date}</Td>
                   <Td>{sale.customerName}</Td>
                   {/* Sum of all item quantities in the sale */}
-                  <Td>{Array.isArray(sale.items) ? sale.items.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0) : 0}</Td>
+                  {!isMobile && <Td>{Array.isArray(sale.items) ? sale.items.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0) : 0}</Td>}
                   <Td>
                     {showPrice
                       ? `Rs ${sale.total?.toFixed(2)}`
                       : '********'}
+                  </Td>
+                  <Td textAlign="right">
+                    <Menu>
+                      <MenuButton
+                        as={IconButton}
+                        icon={<BsThreeDotsVertical />}
+                        variant=""
+                        size="sm"
+                        aria-label="Options"
+                      />
+                      <MenuList>
+                        <MenuItem onClick={() => handleViewInvoice(sale)}>
+                          View Invoice
+                        </MenuItem>
+                        <MenuItem color="red.500" onClick={() => handleDeleteSale(sale.id)}>
+                          Delete Invoice
+                        </MenuItem>
+                      </MenuList>
+                    </Menu>
                   </Td>
                 </Tr>
               ))}
@@ -823,4 +843,4 @@ const addNotification = async (message) => {
   );
 };
 
-export default SalesPanel; 
+export default SalesPanel;

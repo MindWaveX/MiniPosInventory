@@ -26,7 +26,7 @@ const Sidenav = ({ activePanel, setActivePanel, onLogout, userRole, isAdmin, man
   >
     <VStack align="stretch" spacing={4} w="100%">
       <Text fontWeight="bold" w='100%' textAlign="center" fontSize="xl" color="teal.600" mb={2} pl={2}>
-        Inventory
+        Bilal Optics
       </Text>
       <Box w='100%' bg='' style={{ display: 'flex', direction: 'row', alignItems: 'center', justifyContent: 'center'}}>
         {/* <Text fontSize="md" fontWeight={700} color="teal.600">Notifications</Text> */}
@@ -66,27 +66,40 @@ const Sidenav = ({ activePanel, setActivePanel, onLogout, userRole, isAdmin, man
         Inventory
       </Button>
       <Button
-        isActive={activePanel === 'sales'}
+        isActive={activePanel === 'customers'}
         w="100%"
         textAlign="center"
         fontWeight="semibold"
-        onClick={() => setActivePanel('sales')}
-        colorScheme={activePanel === 'sales' ? 'teal' : 'gray'}
-        variant={activePanel === 'sales' ? 'solid' : 'ghost'}
+        onClick={() => setActivePanel('customers')}
+        colorScheme={activePanel === 'customers' ? 'teal' : 'gray'}
+        variant={activePanel === 'customers' ? 'solid' : 'ghost'}
       >
-        Sales
+        Customers
       </Button>
       {(isAdmin || userRole === 'manager') && (
         <Button
-          isActive={activePanel === 'customers'}
+          isActive={activePanel === 'sales'}
           w="100%"
           textAlign="center"
           fontWeight="semibold"
-          onClick={() => setActivePanel('customers')}
-          colorScheme={activePanel === 'customers' ? 'teal' : 'gray'}
-          variant={activePanel === 'customers' ? 'solid' : 'ghost'}
+          onClick={() => setActivePanel('sales')}
+          colorScheme={activePanel === 'sales' ? 'teal' : 'gray'}
+          variant={activePanel === 'sales' ? 'solid' : 'ghost'}
         >
-          Customers
+          Sales
+        </Button>
+      )}
+      {(isAdmin || (userRole === 'manager' && managerCanViewReports)) && (
+        <Button
+          isActive={activePanel === 'reports'}
+          w="100%"
+          textAlign="center"
+          fontWeight="semibold"
+          onClick={() => setActivePanel('reports')}
+          colorScheme={activePanel === 'reports' ? 'teal' : 'gray'}
+          variant={activePanel === 'reports' ? 'solid' : 'ghost'}
+        >
+          Billing
         </Button>
       )}
       {isAdmin && (
@@ -100,19 +113,6 @@ const Sidenav = ({ activePanel, setActivePanel, onLogout, userRole, isAdmin, man
           variant={activePanel === 'settings' ? 'solid' : 'ghost'}
         >
           Settings
-        </Button>
-      )}
-      {(isAdmin || (userRole === 'manager' && managerCanViewReports)) && (
-        <Button
-          isActive={activePanel === 'reports'}
-          w="100%"
-          textAlign="center"
-          fontWeight="semibold"
-          onClick={() => setActivePanel('reports')}
-          colorScheme={activePanel === 'reports' ? 'teal' : 'gray'}
-          variant={activePanel === 'reports' ? 'solid' : 'ghost'}
-        >
-          Reports
         </Button>
       )}
     </VStack>

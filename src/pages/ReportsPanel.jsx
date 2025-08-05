@@ -161,7 +161,7 @@ const ReportsPanel = () => {
 
   return (
     <Box minW={isMobile ? "100vw" : "calc(100vw - 220px)"} minH="100vh" p={2} textAlign="center" bg="white">
-      <Heading mb={6}>Reports</Heading>
+      <Heading mb={6}>Billing</Heading>
       <VStack spacing={6} align="center" mt={8}>
         <FormControl maxW="400px">
           <FormLabel>Start Date</FormLabel>
