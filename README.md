@@ -139,6 +139,3 @@ src/
 
 ### Deployment
 Any static host that serves the `dist/` folder works (e.g., Netlify, Vercel, Firebase Hosting, GitHub Pages with SPA routing considerations).
-
-### License
-MIT
