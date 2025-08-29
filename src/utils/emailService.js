@@ -3,8 +3,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 // EmailJS configuration
-const EMAILJS_PUBLIC_KEY = 'xST36LAwY_IrgUVAZ';
-const EMAILJS_SERVICE_ID = 'service_svfm4mp';
+const EMAILJS_PUBLIC_KEY = 'YOUR_KEY';
+const EMAILJS_SERVICE_ID = 'SERVICE_ID';
 
 // Initialize EmailJS
 emailjs.init(EMAILJS_PUBLIC_KEY);
@@ -19,16 +19,16 @@ const getAlertEmail = async () => {
     const docRef = doc(db, 'settings', 'global');
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
-      const email = docSnap.data().alert_email || 'bilalopticalglasses@gmail.com'; // fallback email updated
+      const email = docSnap.data().alert_email || 'your_email@git.com'; // fallback email updated
       console.log('[DEBUG] getAlertEmail: fetched from Firestore:', email);
       return email;
     }
-    console.log('[DEBUG] getAlertEmail: using default email bilalopticalglasses@gmail.com');
-    return 'bilalopticalglasses@gmail.com'; // Default email
+    console.log('[DEBUG] getAlertEmail: using default email your_email@git.com');
+    return 'your_email@git.com'; // Default email
   } catch (error) {
     console.error('Error fetching alert email:', error);
-    console.log('[DEBUG] getAlertEmail: using default email bilalopticalglasses@gmail.com due to error');
-    return 'bilalopticalglasses@gmail.com'; // Default email on error
+    console.log('[DEBUG] getAlertEmail: using default email your_email@git.com due to error');
+    return 'your_email@git.com'; // Default email on error
   }
 };
 
@@ -56,7 +56,7 @@ export const testEmailJS = async () => {
 
     const result = await emailjs.send(
       EMAILJS_SERVICE_ID,
-      'template_b72gocu', // Use your actual template ID
+      'TEMPLATE_ID', // Use your actual template ID
       templateParams,
       EMAILJS_PUBLIC_KEY
     );
@@ -107,7 +107,7 @@ export const sendLowStockEmail = async (productName, sku, currentQuantity, alert
 
     const result = await emailjs.send(
       EMAILJS_SERVICE_ID,
-      'template_b72gocu', // Use your actual template ID
+      'TEMPLATE_ID', // Use your actual template ID
       templateParams,
       EMAILJS_PUBLIC_KEY
     );
@@ -149,7 +149,7 @@ export const sendNotificationEmail = async (subject, message) => {
 
     const result = await emailjs.send(
       EMAILJS_SERVICE_ID,
-      'template_b72gocu', // Use your actual template ID
+      'TEMPLATE_ID', // Use your actual template ID
       templateParams,
       EMAILJS_PUBLIC_KEY
     );

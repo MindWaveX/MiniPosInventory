@@ -708,7 +708,7 @@ const addNotification = async (message) => {
                     </Button>
                   </HStack>
                   
-                  <Box h='12rem' w='' overflow='auto'>
+                  <Box h='14rem' w='' overflow='auto'>
                     {items.map((item, index) => (
                       <Box key={index} p={2} borderWidth={1} borderRadius="md" mb={2} >
                         <HStack spacing={2}>

@@ -12,7 +12,6 @@ import ReportsPanel from './ReportsPanel';
 import Notifications from '../components/Notifications';
 import { doc, getDoc, collection, query, orderBy, limit, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { BsBell } from 'react-icons/bs';
 
 const Sidenav = ({ activePanel, setActivePanel, onLogout, userRole, isAdmin, managerCanViewReports }) => (
   <Flex
@@ -26,10 +25,9 @@ const Sidenav = ({ activePanel, setActivePanel, onLogout, userRole, isAdmin, man
   >
     <VStack align="stretch" spacing={4} w="100%">
       <Text fontWeight="bold" w='100%' textAlign="center" fontSize="xl" color="teal.600" mb={2} pl={2}>
-        Bilal Optics
+        POS Inventory
       </Text>
       <Box w='100%' bg='' style={{ display: 'flex', direction: 'row', alignItems: 'center', justifyContent: 'center'}}>
-        {/* <Text fontSize="md" fontWeight={700} color="teal.600">Notifications</Text> */}
         <Notifications />
       </Box>
       <Button
@@ -117,15 +115,6 @@ const Sidenav = ({ activePanel, setActivePanel, onLogout, userRole, isAdmin, man
       )}
     </VStack>
     <Spacer />
-    {/* <VStack spacing={2} mt={4}>
-      <Badge 
-        colorScheme={userRole === 'admin' ? 'red' : 'blue'}
-        variant="subtle"
-        fontSize="sm"
-      >
-        {userRole || 'manager'}
-      </Badge>
-    </VStack> */}
     <Button w="100%" mt={8} onClick={onLogout}>
       Logout
     </Button>

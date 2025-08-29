@@ -32,9 +32,6 @@ import {
   FormLabel,
   Input,
   useDisclosure,
-  NumberIncrementStepper,
-  NumberDecrementStepper,
-  NumberInputStepper
 } from '@chakra-ui/react';
 import { BsThreeDotsVertical } from 'react-icons/bs';
 import { collection, getDocs, doc, setDoc, limit, startAfter, orderBy, getCountFromServer, query, updateDoc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
