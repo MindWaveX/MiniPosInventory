@@ -2,6 +2,8 @@
 
 An inventory and sales management demo built with React, Vite, Chakra UI, and Firebase. It supports user roles (admin/manager), product and inventory tracking, sales invoices, PDF reports, and low‑stock notifications.
 
+You can visit [MiniPOSInventory](inventory-demo-da8e6.web.app to view the demo)
+
 ### Features
 - **Authentication & Roles**: Email/password auth with `admin` and `manager` roles.
 - **Products & Inventory**: Manage products, view live inventory, and enforce quantity checks during sales.
